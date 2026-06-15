@@ -45,7 +45,7 @@ export async function extractEntities(message: string): Promise<NlpResult> {
   const raw = completion.choices[0]?.message?.content ?? "{}";
   const result = JSON.parse(raw) as NlpResult;
 
-  if (result.confidence < 0.65) {
+  if (result.confidence < 0.65 && process.env.ANTHROPIC_API_KEY) {
     return extractEntitiesWithClaude(message);
   }
 
