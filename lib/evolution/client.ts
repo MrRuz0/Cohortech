@@ -44,7 +44,9 @@ export async function setWebhook(instanceName: string, webhookUrl: string) {
     headers: headers(),
     body: JSON.stringify({
       webhook: {
+        enabled: true,
         url: webhookUrl,
+        webhookByEvents: false,
         events: ["MESSAGES_UPSERT"],
       },
     }),

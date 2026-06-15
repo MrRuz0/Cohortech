@@ -32,16 +32,17 @@ export async function GET() {
 
     if (!state) {
       await createInstance(instanceName);
-      await setWebhook(
-        instanceName,
-        `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/wa/${clinic.id}`
-      );
 
       await supabase
         .from("clinics")
         .update({ wa_session_id: instanceName })
         .eq("id", clinic.id);
     }
+
+    await setWebhook(
+      instanceName,
+      `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/wa/${clinic.id}`
+    );
 
     if (state?.instance?.state === "open") {
       return NextResponse.json({ connected: true });
