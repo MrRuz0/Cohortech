@@ -2,10 +2,12 @@ import { Worker, type ConnectionOptions } from "bullmq";
 import { createClient } from "@supabase/supabase-js";
 import { extractEntities } from "@/lib/openai/extract-entities";
 import { getCohortQueue } from "@/lib/bullmq/queues";
+import ws from "ws";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { realtime: { transport: ws } }
 );
 
 function getConnection(): ConnectionOptions {
