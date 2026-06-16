@@ -1,3 +1,4 @@
+import http from "http";
 import "@/lib/bullmq/workers/nlp-worker";
 import "@/lib/bullmq/workers/cohort-worker";
 
@@ -11,5 +12,11 @@ process.on("unhandledRejection", (reason) => {
   console.error("unhandledRejection:", reason);
 });
 
-// Keep process alive
-setInterval(() => {}, 30_000);
+// Railway requires an HTTP server bound to $PORT
+const port = process.env.PORT ?? 3001;
+http.createServer((_, res) => {
+  res.writeHead(200);
+  res.end("ok");
+}).listen(port, () => {
+  console.log(`Worker healthcheck server listening on port ${port}`);
+});
