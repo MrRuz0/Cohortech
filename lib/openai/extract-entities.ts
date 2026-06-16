@@ -1,8 +1,18 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+let _openai: OpenAI | null = null;
+let _anthropic: Anthropic | null = null;
+
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
+}
+
+function getAnthropic() {
+  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return _anthropic;
+}
 
 export const SYSTEM_PROMPT = `Eres un extractor de datos clínicos para una clínica de medicina estética.
 Analiza el mensaje de WhatsApp y devuelve ÚNICAMENTE un objeto JSON con estos campos.
@@ -33,7 +43,7 @@ export type NlpResult = {
 };
 
 export async function extractEntities(message: string): Promise<NlpResult> {
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: "gpt-4o-mini",
     response_format: { type: "json_object" },
     messages: [
@@ -53,7 +63,7 @@ export async function extractEntities(message: string): Promise<NlpResult> {
 }
 
 export async function extractEntitiesWithClaude(message: string): Promise<NlpResult> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
