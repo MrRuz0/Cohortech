@@ -39,11 +39,26 @@ export function CohortCard({ cohort }: { cohort: CohortInfo }) {
   const [editing, setEditing] = useState(false);
   const [template, setTemplate] = useState(cohort.message_template);
   const [saving, setSaving] = useState(false);
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
 
   const conversionRate =
     cohort.memberCount > 0
       ? Math.round((cohort.convertedCount / cohort.memberCount) * 100)
       : 0;
+
+  async function broadcast() {
+    if (!confirm(`¿Enviar mensaje a los ${cohort.memberCount} miembros de "${cohort.name}"?`))
+      return;
+    setBroadcasting(true);
+    setBroadcastResult(null);
+    const res = await fetch(`/api/cohorts/${cohort.id}/broadcast`, { method: "POST" });
+    const data = await res.json();
+    setBroadcastResult(
+      res.ok ? `✓ Enviado a ${data.sent} pacientes` : `Error: ${data.error}`
+    );
+    setBroadcasting(false);
+  }
 
   async function saveTemplate() {
     setSaving(true);
@@ -103,6 +118,24 @@ export function CohortCard({ cohort }: { cohort: CohortInfo }) {
           <p className="text-xs text-gray-500">conversión</p>
         </div>
       </div>
+
+      {/* Broadcast button */}
+      {cohort.memberCount > 0 && (
+        <div className="mt-3">
+          <button
+            onClick={broadcast}
+            disabled={broadcasting}
+            className="w-full rounded-md bg-indigo-600 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {broadcasting
+              ? "Enviando…"
+              : `Enviar mensaje a ${cohort.memberCount} pacientes`}
+          </button>
+          {broadcastResult && (
+            <p className="mt-1 text-center text-xs text-gray-500">{broadcastResult}</p>
+          )}
+        </div>
+      )}
 
       {/* Expand/collapse */}
       <button

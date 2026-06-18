@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "@/components/dashboard/LogoutButton";
+import Link from "next/link";
 
 export default async function DashboardLayout({
   children,
@@ -16,24 +17,23 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b px-6 py-4">
-        <span className="text-lg font-bold">Cohortech</span>
-        <nav className="flex items-center gap-4 text-sm">
-          <a href="/" className="hover:underline">
+      <header className="flex items-center justify-between border-b px-6 py-3">
+        <Link href="/" className="text-lg font-bold tracking-tight">
+          Cohortech
+        </Link>
+        <nav className="flex items-center gap-5 text-sm">
+          <Link href="/" className="text-gray-600 hover:text-black">
             Dashboard
-          </a>
-          <a href="/patients" className="hover:underline">
+          </Link>
+          <Link href="/patients" className="text-gray-600 hover:text-black">
             Pacientes
-          </a>
-          <a href="/cohorts" className="hover:underline">
+          </Link>
+          <Link href="/cohorts" className="text-gray-600 hover:text-black">
             Cohortes
-          </a>
-          <a href="/events" className="hover:underline">
-            Eventos
-          </a>
-          <a href="/settings" className="hover:underline">
-            Settings
-          </a>
+          </Link>
+          <Link href="/settings" className="text-gray-600 hover:text-black">
+            Configuración
+          </Link>
           <LogoutButton />
         </nav>
       </header>
