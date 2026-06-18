@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/dispatch",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/discover-cohorts",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
