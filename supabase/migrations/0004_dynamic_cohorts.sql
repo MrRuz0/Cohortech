@@ -8,8 +8,9 @@ ALTER TABLE clinics ADD COLUMN IF NOT EXISTS clinic_description text;
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS last_auto_response_at timestamptz;
 
 -- 3. Rediseñar cohort_definitions y cohort_memberships
-DROP TABLE IF EXISTS cohort_memberships;
-DROP TABLE IF EXISTS cohort_definitions;
+DROP TABLE IF EXISTS scheduled_events CASCADE;
+DROP TABLE IF EXISTS cohort_memberships CASCADE;
+DROP TABLE IF EXISTS cohort_definitions CASCADE;
 
 CREATE TABLE cohort_definitions (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),

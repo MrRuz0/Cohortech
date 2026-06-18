@@ -9,6 +9,7 @@ import ws from "ws";
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  // @ts-ignore — ws required for Node 18 WebSocket support
   { realtime: { transport: ws } }
 );
 
