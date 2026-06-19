@@ -4,13 +4,11 @@ import { extractEntities } from "@/lib/openai/extract-entities";
 import { getCohortQueue } from "@/lib/bullmq/queues";
 import { generateAutoResponse, canAutoRespond } from "@/lib/cohorts/respond";
 import { sendTextMessage } from "@/lib/evolution/client";
-import ws from "ws";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  // @ts-ignore — ws required for Node 18 WebSocket support
-  { realtime: { transport: ws } }
+  { auth: { persistSession: false } }
 );
 
 function getConnection(): ConnectionOptions {

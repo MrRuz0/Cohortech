@@ -2,13 +2,11 @@ import { Worker, type ConnectionOptions } from "bullmq";
 import { createClient } from "@supabase/supabase-js";
 import type { NlpResult } from "@/lib/openai/extract-entities";
 import { assignPatientToCohort } from "@/lib/cohorts/assign";
-import ws from "ws";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  // @ts-ignore — ws required for Node 18 WebSocket support
-  { realtime: { transport: ws } }
+  { auth: { persistSession: false } }
 );
 
 function getConnection(): ConnectionOptions {
