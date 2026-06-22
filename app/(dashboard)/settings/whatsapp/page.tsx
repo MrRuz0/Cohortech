@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { QRConnector } from "@/components/onboarding/QRConnector";
 import { HistoricalSyncButton } from "@/components/onboarding/HistoricalSyncButton";
 import { ReceptionistPhoneForm } from "@/components/onboarding/ReceptionistPhoneForm";
+import { MaxDiscountForm } from "@/components/onboarding/MaxDiscountForm";
 
 export default async function WhatsAppSettingsPage() {
   const supabase = await createClient();
@@ -13,7 +14,7 @@ export default async function WhatsAppSettingsPage() {
   const { data: clinic } = user
     ? await supabase
         .from("clinics")
-        .select("receptionist_phone")
+        .select("receptionist_phone, max_discount_percent")
         .eq("owner_id", user.id)
         .single()
     : { data: null };
@@ -36,6 +37,13 @@ export default async function WhatsAppSettingsPage() {
         <ReceptionistPhoneForm
           initialPhone={clinic?.receptionist_phone ?? null}
         />
+      </div>
+
+      <hr />
+
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold">Seguimiento automático</h2>
+        <MaxDiscountForm initialPercent={clinic?.max_discount_percent ?? 10} />
       </div>
 
       <hr />

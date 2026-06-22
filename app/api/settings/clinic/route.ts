@@ -11,10 +11,17 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json();
   const allowed = ["receptionist_phone", "clinic_description", "name"] as const;
-  const updates: Record<string, string> = {};
+  const updates: Record<string, string | number> = {};
 
   for (const key of allowed) {
     if (key in body) updates[key] = body[key];
+  }
+
+  if ("max_discount_percent" in body) {
+    const pct = Number(body.max_discount_percent);
+    if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+      updates.max_discount_percent = pct;
+    }
   }
 
   if (Object.keys(updates).length === 0) {

@@ -13,7 +13,8 @@ export default async function CohortsPage() {
          id,
          membership_status,
          conversion_type,
-         message_count
+         message_count,
+         followup_stage
        )`
     )
     .eq("is_active", true)
@@ -24,6 +25,9 @@ export default async function CohortsPage() {
     const memberCount = memberships.length;
     const convertedCount = memberships.filter(
       (m) => m.conversion_type !== null
+    ).length;
+    const churnedCount = memberships.filter(
+      (m) => m.membership_status === "churned"
     ).length;
     const messageCount = memberships.reduce(
       (sum: number, m) => sum + (m.message_count ?? 0),
@@ -41,6 +45,7 @@ export default async function CohortsPage() {
       is_active: cohort.is_active,
       memberCount,
       convertedCount,
+      churnedCount,
       messageCount,
     };
   });
@@ -87,7 +92,7 @@ export default async function CohortsPage() {
           <p className="text-lg font-medium">Aún no hay cohortes</p>
           <p className="mt-1 text-sm">
             Las cohortes se crean automáticamente conforme los pacientes envían
-            mensajes. El sistema las descubre cada 6 horas.
+            mensajes. El sistema las descubre una vez al día.
           </p>
         </div>
       ) : (

@@ -31,6 +31,7 @@ export type CohortInfo = {
   is_active: boolean | null;
   memberCount: number;
   convertedCount: number;
+  churnedCount: number;
   messageCount: number;
 };
 
@@ -104,7 +105,7 @@ export function CohortCard({ cohort }: { cohort: CohortInfo }) {
       </div>
 
       {/* Stats */}
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+      <div className="mt-3 grid grid-cols-4 gap-2 text-center">
         <div>
           <p className="text-xl font-bold">{cohort.memberCount}</p>
           <p className="text-xs text-gray-500">pacientes</p>
@@ -116,6 +117,10 @@ export function CohortCard({ cohort }: { cohort: CohortInfo }) {
         <div>
           <p className="text-xl font-bold text-green-600">{conversionRate}%</p>
           <p className="text-xs text-gray-500">conversión</p>
+        </div>
+        <div>
+          <p className="text-xl font-bold text-red-500">{cohort.churnedCount}</p>
+          <p className="text-xs text-gray-500">churn</p>
         </div>
       </div>
 

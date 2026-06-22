@@ -71,13 +71,21 @@ Responde ÚNICAMENTE con el UUID de la cohorte más apropiada, o con la palabra 
   const matched = cohorts.find((c: CohortRow) => c.id === answer) ?? null;
   if (!matched) return null;
 
+  // Booking intent = conversion. Stop the follow-up sequence immediately.
+  const isConverted = nlpResult.intent === "booking";
+
   await supabase.from("cohort_memberships").upsert(
     {
       clinic_id: clinicId,
       patient_id: patientId,
       cohort_id: matched.id,
-      membership_status: "active",
+      membership_status: isConverted ? "converted" : "active",
       assigned_at: new Date().toISOString(),
+      ...(isConverted && {
+        converted_at: new Date().toISOString(),
+        conversion_type: "booking",
+        next_followup_at: null,
+      }),
     },
     { onConflict: "patient_id,cohort_id", ignoreDuplicates: false }
   );
