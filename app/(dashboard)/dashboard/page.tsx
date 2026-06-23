@@ -47,17 +47,17 @@ export default async function DashboardPage() {
   const isConnected = !!clinic?.wa_session_id;
 
   return (
-    <div className="space-y-6">
+    <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6 duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-sm text-gray-500">{clinic?.name ?? "Mi Clínica"}</p>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">{clinic?.name ?? "Mi Clínica"}</p>
         </div>
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-sm shadow-sm">
           <span
-            className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-400"}`}
+            className={`h-2 w-2 rounded-full ${isConnected ? "bg-emerald-500" : "bg-red-400"} ${isConnected ? "animate-pulse" : ""}`}
           />
-          <span className="text-gray-500">
+          <span className="text-muted-foreground">
             {isConnected ? "WhatsApp conectado" : "WhatsApp no conectado"}
           </span>
         </div>
@@ -65,21 +65,21 @@ export default async function DashboardPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border p-4">
-          <p className="text-xs text-gray-500">Pacientes totales</p>
-          <p className="text-3xl font-bold">{totalPatients ?? 0}</p>
+        <div className="group rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+          <p className="text-xs text-muted-foreground">Pacientes totales</p>
+          <p className="mt-1 text-3xl font-bold tracking-tight">{totalPatients ?? 0}</p>
         </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-xs text-gray-500">Cohortes activas</p>
-          <p className="text-3xl font-bold">{totalCohorts ?? 0}</p>
+        <div className="group rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+          <p className="text-xs text-muted-foreground">Cohortes activas</p>
+          <p className="mt-1 text-3xl font-bold tracking-tight">{totalCohorts ?? 0}</p>
         </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-xs text-gray-500">Quieren agendar</p>
-          <p className="text-3xl font-bold text-green-600">{pendingBookings ?? 0}</p>
+        <div className="group rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+          <p className="text-xs text-muted-foreground">Quieren agendar</p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-emerald-600">{pendingBookings ?? 0}</p>
         </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-xs text-gray-500">Mensajes hoy</p>
-          <p className="text-3xl font-bold">{processedToday ?? 0}</p>
+        <div className="group rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+          <p className="text-xs text-muted-foreground">Mensajes hoy</p>
+          <p className="mt-1 text-3xl font-bold tracking-tight">{processedToday ?? 0}</p>
         </div>
       </div>
 
@@ -94,7 +94,7 @@ export default async function DashboardPage() {
             {!isConnected && (
               <span>
                 {" "}
-                <a href="/settings/whatsapp" className="text-indigo-500 underline">
+                <a href="/dashboard/settings/whatsapp" className="text-indigo-500 underline">
                   Conecta WhatsApp
                 </a>{" "}
                 para empezar.
@@ -146,7 +146,7 @@ export default async function DashboardPage() {
       {!isConnected && (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
           WhatsApp no está conectado.{" "}
-          <a href="/settings/whatsapp" className="font-medium underline">
+          <a href="/dashboard/settings/whatsapp" className="font-medium underline">
             Ir a configuración →
           </a>
         </div>
