@@ -32,7 +32,11 @@ export async function GET() {
 
     if (!state) {
       await createInstance(instanceName);
+    }
 
+    // Always keep the DB in sync with the actual Evolution API instance name,
+    // regardless of whether it already existed (fixes stale/missing wa_session_id).
+    if (clinic.wa_session_id !== instanceName) {
       await supabase
         .from("clinics")
         .update({ wa_session_id: instanceName })
