@@ -31,18 +31,28 @@ export function QRConnector() {
   }, []);
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Cargando...</p>;
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+        Cargando...
+      </div>
+    );
   }
 
   if (data?.error) {
-    return <p className="text-sm text-red-600">Error: {data.error}</p>;
+    return (
+      <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+        Error: {data.error}
+      </p>
+    );
   }
 
   if (data?.connected) {
     return (
-      <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-        <p className="font-medium text-green-700">
-          WhatsApp conectado correctamente ✓
+      <div className="animate-in fade-in zoom-in-95 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 duration-300">
+        <span className="text-lg">✓</span>
+        <p className="font-medium text-emerald-700">
+          WhatsApp conectado correctamente
         </p>
       </div>
     );
@@ -50,22 +60,23 @@ export function QRConnector() {
 
   if (data?.qr) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-gray-500">
+      <div className="animate-in fade-in space-y-3 duration-500">
+        <p className="text-sm text-muted-foreground">
           Escanea este código QR con WhatsApp (Dispositivos vinculados → Vincular
           un dispositivo).
         </p>
         <img
           src={data.qr}
           alt="QR de WhatsApp"
-          className="h-64 w-64 rounded-lg border"
+          className="h-64 w-64 rounded-xl border shadow-sm"
         />
-        <p className="text-xs text-gray-400">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
           El código se actualiza automáticamente cada 5 segundos.
         </p>
       </div>
     );
   }
 
-  return <p className="text-sm text-gray-500">Generando código QR...</p>;
+  return <p className="text-sm text-muted-foreground">Generando código QR...</p>;
 }

@@ -20,42 +20,38 @@ export default async function WhatsAppSettingsPage() {
     : { data: null };
 
   return (
-    <div className="space-y-8">
+    <div className="animate-in fade-in slide-in-from-bottom-2 max-w-2xl space-y-8 duration-500">
       <div>
-        <h1 className="text-2xl font-bold">Conexión WhatsApp</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-bold tracking-tight">Conexión WhatsApp</h1>
+        <p className="text-sm text-muted-foreground">
           Conecta el WhatsApp de tu clínica escaneando el código QR.
         </p>
       </div>
 
-      <QRConnector />
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <QRConnector />
+      </section>
 
-      <hr />
-
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold">Notificaciones a recepcionista</h2>
+      <section className="space-y-3 rounded-xl border bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold">Notificaciones a recepcionista</h2>
         <ReceptionistPhoneForm
           initialPhone={clinic?.receptionist_phone ?? null}
         />
-      </div>
+      </section>
 
-      <hr />
-
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold">Seguimiento automático</h2>
+      <section className="space-y-3 rounded-xl border bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold">Seguimiento automático</h2>
         <MaxDiscountForm initialPercent={clinic?.max_discount_percent ?? 10} />
-      </div>
+      </section>
 
-      <hr />
-
-      <div>
-        <h2 className="text-lg font-semibold">Sincronización histórica</h2>
-        <p className="mb-2 text-sm text-gray-500">
+      <section className="space-y-2 rounded-xl border bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold">Sincronización histórica</h2>
+        <p className="mb-2 text-sm text-muted-foreground">
           Importa las conversaciones previas para detectar pacientes y cohortes
           existentes.
         </p>
         <HistoricalSyncButton />
-      </div>
+      </section>
     </div>
   );
 }

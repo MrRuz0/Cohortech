@@ -55,10 +55,10 @@ export default async function CohortsPage() {
   const totalConverted = items.reduce((s, c) => s + c.convertedCount, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6 duration-500">
       <div>
-        <h1 className="text-2xl font-bold">Cohortes de Comportamiento</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-bold tracking-tight">Cohortes de Comportamiento</h1>
+        <p className="text-sm text-muted-foreground">
           El sistema descubre y crea estas cohortes automáticamente analizando las
           conversaciones de WhatsApp.
         </p>
@@ -67,28 +67,28 @@ export default async function CohortsPage() {
       {/* Summary stats */}
       {items.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border p-4 text-center">
-            <p className="text-3xl font-bold">{items.length}</p>
-            <p className="text-sm text-gray-500">cohortes activas</p>
+          <div className="rounded-xl border bg-white p-4 text-center shadow-sm">
+            <p className="text-3xl font-bold tracking-tight">{items.length}</p>
+            <p className="text-sm text-muted-foreground">cohortes activas</p>
           </div>
-          <div className="rounded-lg border p-4 text-center">
-            <p className="text-3xl font-bold">{totalPatients}</p>
-            <p className="text-sm text-gray-500">pacientes clasificados</p>
+          <div className="rounded-xl border bg-white p-4 text-center shadow-sm">
+            <p className="text-3xl font-bold tracking-tight">{totalPatients}</p>
+            <p className="text-sm text-muted-foreground">pacientes clasificados</p>
           </div>
-          <div className="rounded-lg border p-4 text-center">
-            <p className="text-3xl font-bold text-green-600">
+          <div className="rounded-xl border bg-white p-4 text-center shadow-sm">
+            <p className="text-3xl font-bold tracking-tight text-emerald-600">
               {totalPatients > 0
                 ? Math.round((totalConverted / totalPatients) * 100)
                 : 0}
               %
             </p>
-            <p className="text-sm text-gray-500">conversión global</p>
+            <p className="text-sm text-muted-foreground">conversión global</p>
           </div>
         </div>
       )}
 
       {items.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center text-gray-400">
+        <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground">
           <p className="text-lg font-medium">Aún no hay cohortes</p>
           <p className="mt-1 text-sm">
             Las cohortes se crean automáticamente conforme los pacientes envían
@@ -97,13 +97,19 @@ export default async function CohortsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((cohort) => (
-            <CohortCard key={cohort.id} cohort={cohort} />
+          {items.map((cohort, i) => (
+            <div
+              key={cohort.id}
+              style={{ animationDelay: `${i * 60}ms` }}
+              className="animate-in fade-in slide-in-from-bottom-2 duration-500"
+            >
+              <CohortCard cohort={cohort} />
+            </div>
           ))}
         </div>
       )}
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-muted-foreground">
         Las cohortes marcadas con "IA" fueron generadas automáticamente. Puedes
         editar la plantilla de mensaje en cada tarjeta.
       </p>
