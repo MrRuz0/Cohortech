@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { CardCaptureForm } from "@/components/billing/CardCaptureForm";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const supabase = createClient();
+  const [step, setStep] = useState<"account" | "card">("account");
   const [clinicName, setClinicName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,8 +34,22 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    setLoading(false);
+    setStep("card");
+  }
+
+  if (step === "card") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Un último paso</h1>
+          <p className="text-sm text-muted-foreground">
+            Agrega tu tarjeta para activar tu prueba gratis de 7 días
+          </p>
+        </div>
+        <CardCaptureForm />
+      </div>
+    );
   }
 
   return (
@@ -102,7 +116,7 @@ export default function RegisterPage() {
           className="w-full bg-gradient-to-r from-[var(--brand-from)] to-[var(--brand-to)] transition-opacity hover:opacity-90"
           disabled={loading}
         >
-          {loading ? "Creando cuenta..." : "Crear cuenta"}
+          {loading ? "Creando cuenta..." : "Continuar"}
         </Button>
       </form>
 

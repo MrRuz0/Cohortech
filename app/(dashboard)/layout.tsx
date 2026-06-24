@@ -1,19 +1,43 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "@/components/dashboard/LogoutButton";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { BillingPaywall } from "@/components/billing/BillingPaywall";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const isBillingPage = pathname.startsWith("/dashboard/settings/billing");
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
 
   if (error || !data?.user) {
     redirect("/login");
   }
+
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("id")
+    .eq("owner_id", data.user.id)
+    .single();
+
+  const { data: subscription } = clinic
+    ? await supabase
+        .from("subscriptions")
+        .select("status, trial_ends_at, current_period_end")
+        .eq("clinic_id", clinic.id)
+        .single()
+    : { data: null };
+
+  const isBlocked =
+    !isBillingPage &&
+    subscription &&
+    (subscription.status === "past_due" || subscription.status === "canceled");
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/40">
@@ -29,7 +53,9 @@ export default async function DashboardLayout({
           <LogoutButton />
         </div>
       </header>
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex-1 p-6">
+        {isBlocked ? <BillingPaywall status={subscription.status} /> : children}
+      </main>
     </div>
   );
 }
