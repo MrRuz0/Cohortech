@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createSubscription } from "@/lib/mercadopago/client";
+import { createSubscriptionCheckout } from "@/lib/mercadopago/client";
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   const supabase = await createClient();
 
   const {
@@ -10,11 +10,6 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user || !user.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { cardTokenId } = await request.json();
-  if (!cardTokenId) {
-    return NextResponse.json({ error: "Falta cardTokenId" }, { status: 400 });
   }
 
   const { data: clinic } = await supabase
@@ -28,20 +23,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const subscription = await createSubscription({
-      cardTokenId,
+    const subscription = await createSubscriptionCheckout({
       payerEmail: user.email,
       clinicId: clinic.id,
     });
-
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 7);
 
     await supabase.from("subscriptions").upsert(
       {
         clinic_id: clinic.id,
         status: "trialing",
-        trial_ends_at: trialEndsAt.toISOString(),
         mp_preapproval_id: subscription.id,
         payer_email: user.email,
         updated_at: new Date().toISOString(),
@@ -49,7 +39,7 @@ export async function POST(request: NextRequest) {
       { onConflict: "clinic_id" }
     );
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, initPoint: subscription.init_point });
   } catch (err) {
     console.error("Error creando suscripción MercadoPago:", err);
     const message =
