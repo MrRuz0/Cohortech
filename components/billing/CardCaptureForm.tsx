@@ -27,7 +27,8 @@ export function CardCaptureForm() {
     script.src = "https://sdk.mercadopago.com/js/v2";
     script.onload = () => {
       const instance = new window.MercadoPago(
-        process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY
+        process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY,
+        { locale: "es-PE" }
       );
       setMp(instance);
     };

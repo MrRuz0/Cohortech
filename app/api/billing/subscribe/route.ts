@@ -52,9 +52,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Error creando suscripción MercadoPago:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const message =
+      err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message ?? "Error desconocido";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
