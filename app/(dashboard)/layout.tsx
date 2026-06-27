@@ -34,10 +34,13 @@ export default async function DashboardLayout({
         .single()
     : { data: null };
 
+  // Allowlist: only "trialing" or "active" get in. No subscription row at all
+  // (pilot clinics onboarded manually, pre-billing) is also let through.
   const isBlocked =
     !isBillingPage &&
     subscription &&
-    (subscription.status === "past_due" || subscription.status === "canceled");
+    subscription.status !== "trialing" &&
+    subscription.status !== "active";
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/40">

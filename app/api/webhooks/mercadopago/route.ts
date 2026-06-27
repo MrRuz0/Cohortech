@@ -7,11 +7,14 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// "authorized" = MercadoPago confirmed the card; the free_trial window inside
+// auto_recurring delays the first real charge, so we mark it "trialing" here.
+// "pending" means the user has not finished entering card details yet — no access.
 const STATUS_MAP: Record<string, string> = {
-  authorized: "active",
+  authorized: "trialing",
   paused: "past_due",
   cancelled: "canceled",
-  pending: "trialing",
+  pending: "pending",
 };
 
 export async function POST(request: NextRequest) {
@@ -27,10 +30,22 @@ export async function POST(request: NextRequest) {
       const preapproval = await getSubscription(id);
       const mappedStatus = STATUS_MAP[preapproval.status ?? ""] ?? "past_due";
 
+      const { data: existing } = await supabaseAdmin
+        .from("subscriptions")
+        .select("trial_ends_at")
+        .eq("mp_preapproval_id", id)
+        .single();
+
+      const trialEndsAt =
+        mappedStatus === "trialing" && !existing?.trial_ends_at
+          ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          : undefined;
+
       await supabaseAdmin
         .from("subscriptions")
         .update({
           status: mappedStatus,
+          ...(trialEndsAt ? { trial_ends_at: trialEndsAt } : {}),
           current_period_end:
             (preapproval.auto_recurring as { start_date?: string } | undefined)
               ?.start_date ?? null,

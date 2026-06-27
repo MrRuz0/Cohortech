@@ -3,6 +3,7 @@ import { CardCaptureForm } from "@/components/billing/CardCaptureForm";
 import { CancelSubscriptionButton } from "@/components/billing/CancelSubscriptionButton";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending: { label: "Falta confirmar tarjeta", color: "bg-amber-100 text-amber-700" },
   trialing: { label: "Prueba gratis activa", color: "bg-blue-100 text-blue-700" },
   active: { label: "Activa", color: "bg-emerald-100 text-emerald-700" },
   past_due: { label: "Pago fallido", color: "bg-red-100 text-red-700" },
@@ -73,10 +74,14 @@ export default async function BillingPage() {
             </p>
           )}
 
-          {(subscription.status === "past_due" || subscription.status === "canceled") && (
+          {(subscription.status === "past_due" ||
+            subscription.status === "canceled" ||
+            subscription.status === "pending") && (
             <div className="space-y-3 border-t pt-4">
               <p className="text-sm text-muted-foreground">
-                Actualiza tu tarjeta para reactivar tu suscripción.
+                {subscription.status === "pending"
+                  ? "Termina de agregar tu tarjeta en MercadoPago para activar tu prueba gratis."
+                  : "Actualiza tu tarjeta para reactivar tu suscripción."}
               </p>
               <CardCaptureForm />
             </div>

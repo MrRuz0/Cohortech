@@ -1,6 +1,11 @@
 import Link from "next/link";
 
 const MESSAGES: Record<string, { title: string; description: string }> = {
+  pending: {
+    title: "Falta confirmar tu método de pago",
+    description:
+      "Aún no terminaste de agregar tu tarjeta en MercadoPago. Complétalo para activar tu prueba gratis de 7 días.",
+  },
   past_due: {
     title: "No pudimos cobrar tu suscripción",
     description:

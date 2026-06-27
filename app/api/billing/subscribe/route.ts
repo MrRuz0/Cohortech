@@ -28,10 +28,12 @@ export async function POST(_request: NextRequest) {
       clinicId: clinic.id,
     });
 
+    // Status stays "pending" until MercadoPago confirms via webhook that the
+    // card was actually authorized. Only then does the user get dashboard access.
     await supabase.from("subscriptions").upsert(
       {
         clinic_id: clinic.id,
-        status: "trialing",
+        status: "pending",
         mp_preapproval_id: subscription.id,
         payer_email: user.email,
         updated_at: new Date().toISOString(),
