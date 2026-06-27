@@ -2,6 +2,12 @@ import Link from "next/link";
 
 const sections = [
   {
+    href: "/dashboard/settings/profile",
+    title: "Mi Clínica",
+    description: "Tu cuenta, correo, nombre y datos esenciales de la clínica.",
+    icon: "🏥",
+  },
+  {
     href: "/dashboard/settings/whatsapp",
     title: "Conexión WhatsApp",
     description:
