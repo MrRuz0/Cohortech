@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { WhatsAppFloatButton } from "@/components/marketing/WhatsAppFloatButton";
 
 const features = [
   {
@@ -34,6 +35,29 @@ const steps = [
   { n: "3", title: "Deja que el sistema trabaje", text: "Responde, clasifica y da seguimiento, todos los días." },
 ];
 
+const faqs = [
+  {
+    q: "¿Necesito cambiar mi número de WhatsApp?",
+    a: "No. Conectas el mismo número que ya usas con tus pacientes, solo escaneas un código QR una vez.",
+  },
+  {
+    q: "¿Qué pasa con los datos de mis pacientes?",
+    a: "Se almacenan de forma segura y solo tu clínica puede verlos. Nunca los vendemos ni los compartimos con terceros. Más detalle en nuestra Política de Privacidad.",
+  },
+  {
+    q: "¿Cuánto cuesta y cuándo me cobran?",
+    a: "Un solo plan de $79/mes. Tienes 7 días de prueba gratis y solo se cobra automáticamente a tu tarjeta si no cancelas antes de que termine la prueba.",
+  },
+  {
+    q: "¿Puedo cancelar cuando quiera?",
+    a: "Sí, sin contratos forzosos. Cancelas desde tu panel en un clic y dejas de pagar desde el siguiente ciclo.",
+  },
+  {
+    q: "¿Reemplaza a mi recepcionista?",
+    a: "No, la potencia. Cohortech responde y filtra automáticamente, y avisa a tu recepcionista por WhatsApp solo cuando un paciente está listo para agendar.",
+  },
+];
+
 export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col">
@@ -45,7 +69,13 @@ export default function LandingPage() {
           </div>
           <span className="text-lg font-bold tracking-tight">Cohortech</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-5">
+          <Link
+            href="/casos-de-exito"
+            className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:inline"
+          >
+            Casos de éxito
+          </Link>
           <Link
             href="/login"
             className="text-sm font-medium text-muted-foreground hover:text-foreground"
@@ -158,9 +188,49 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* FAQ */}
+      <section className="px-6 py-20">
+        <div className="mx-auto max-w-2xl">
+          <h2 className="text-center text-2xl font-bold tracking-tight">
+            Preguntas frecuentes
+          </h2>
+          <div className="mt-8 space-y-4">
+            {faqs.map((f) => (
+              <details
+                key={f.q}
+                className="group rounded-xl border bg-white p-5 shadow-sm"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between font-medium">
+                  {f.q}
+                  <span className="ml-4 text-muted-foreground transition-transform group-open:rotate-45">
+                    +
+                  </span>
+                </summary>
+                <p className="mt-3 text-sm text-muted-foreground">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <footer className="border-t px-6 py-8 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} Cohortech. Todos los derechos reservados.
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 sm:flex-row sm:justify-between">
+          <p>© {new Date().getFullYear()} Cohortech. Todos los derechos reservados.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/casos-de-exito" className="hover:text-foreground">
+              Casos de éxito
+            </Link>
+            <Link href="/terminos" className="hover:text-foreground">
+              Términos
+            </Link>
+            <Link href="/privacidad" className="hover:text-foreground">
+              Privacidad
+            </Link>
+          </div>
+        </div>
       </footer>
+
+      <WhatsAppFloatButton />
     </div>
   );
 }
