@@ -14,12 +14,6 @@ const sections = [
       "Conecta el WhatsApp de tu clínica, configura el número de recepcionista y sincroniza el historial.",
     icon: "💬",
   },
-  {
-    href: "/dashboard/settings/billing",
-    title: "Facturación",
-    description: "Revisa tu plan, próximo cobro y método de pago.",
-    icon: "💳",
-  },
 ];
 
 export default function SettingsPage() {
