@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     .from("cohort_memberships")
     .select(
       `id, patient_id, cohort_id, clinic_id, followup_stage, last_messaged_at,
-       patients(full_name, phone_e164),
+       patients(full_name, phone_e164, is_returning),
        cohort_definitions(name, pain_point, conversion_strategy),
        clinics(name, wa_session_id, max_discount_percent)`
     )
@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
         stage: nextStage,
         daysSinceLastContact,
         maxDiscountPercent: clinic.max_discount_percent ?? 10,
+        isReturning: patient.is_returning ?? false,
       });
 
       const personalizedMsg = decision.message.replace(

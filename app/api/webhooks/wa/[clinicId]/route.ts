@@ -42,6 +42,15 @@ async function processWebhook(clinicId: string, body: unknown) {
 
   if (!waMessageId || !phoneE164) return;
 
+  // Track last WA activity on clinic for admin churn panel
+  if (direction === "inbound") {
+    supabaseAdmin
+      .from("clinics")
+      .update({ last_wa_message_at: new Date().toISOString() })
+      .eq("id", clinicId)
+      .then(() => {});
+  }
+
   // Upsert paciente
   const { data: patient } = await supabaseAdmin
     .from("patients")

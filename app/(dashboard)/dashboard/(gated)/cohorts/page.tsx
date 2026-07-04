@@ -88,12 +88,28 @@ export default async function CohortsPage() {
       )}
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground">
-          <p className="text-lg font-medium">Aún no hay cohortes</p>
-          <p className="mt-1 text-sm">
-            Las cohortes se crean automáticamente conforme los pacientes envían
-            mensajes. El sistema las descubre una vez al día.
+        <div className="rounded-xl border border-dashed bg-white p-12 text-center shadow-sm">
+          <p className="text-4xl">🧠</p>
+          <p className="mt-4 text-base font-semibold">Aún no hay cohortes detectadas</p>
+          <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
+            El sistema analiza los mensajes de WhatsApp y crea cohortes de
+            comportamiento automáticamente una vez al día. Necesitas al menos
+            algunos mensajes entrantes para que empiece a detectar patrones.
           </p>
+          <div className="mt-6 flex flex-col items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Paso 1: Conecta WhatsApp
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-blue-400" />
+              Paso 2: Recibe mensajes de pacientes
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              Paso 3: El sistema detecta cohortes (automático, cada 24h)
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -24,6 +24,7 @@ export async function generateFollowup({
   stage,
   daysSinceLastContact,
   maxDiscountPercent,
+  isReturning = false,
 }: {
   clinicName: string;
   patientName: string | null;
@@ -33,13 +34,21 @@ export async function generateFollowup({
   stage: number;
   daysSinceLastContact: number;
   maxDiscountPercent: number;
+  isReturning?: boolean;
 }): Promise<FollowupDecision> {
   const isLastStage = stage >= MAX_FOLLOWUP_STAGES;
 
-  const prompt = `Eres un experto en ventas y retención para clínicas de medicina estética. Estás armando el mensaje de WhatsApp de seguimiento número ${stage} de un máximo de ${MAX_FOLLOWUP_STAGES} para un paciente que no ha convertido todavía.
+  const returningContext = isReturning
+    ? `Este es un paciente RECURRENTE que ya ha visitado la clínica antes. No lo trates como prospecto nuevo — reconoce su historial, usa un tono más cálido y cercano, y en lugar de convencer, recuérdale que ya conoce la calidad del servicio. No ofrezcas descuentos agresivos en etapas tempranas.`
+    : `Este es un paciente nuevo que aún no ha convertido.`;
+
+  const prompt = `Eres un experto en ventas y retención para clínicas de medicina estética. Estás armando el mensaje de WhatsApp de seguimiento número ${stage} de un máximo de ${MAX_FOLLOWUP_STAGES} para un paciente.
+
+${returningContext}
 
 Clínica: ${clinicName}
 Paciente: ${patientName ?? "sin nombre registrado"}
+Es paciente recurrente: ${isReturning ? "SÍ" : "NO"}
 Cohorte: ${cohortName}
 Punto de dolor detectado: ${painPoint}
 Estrategia psicológica de esta cohorte: ${conversionStrategy}

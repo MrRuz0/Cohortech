@@ -20,6 +20,32 @@ const STRATEGY_COLORS: Record<string, string> = {
   loss_aversion: "bg-yellow-100 text-yellow-700",
 };
 
+function FunnelBar({
+  label,
+  count,
+  total,
+  color,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  color: string;
+}) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="w-16 shrink-0 text-right text-gray-500">{label}</span>
+      <div className="flex-1 rounded-full bg-gray-100 h-2 overflow-hidden">
+        <div
+          className={`h-2 rounded-full transition-all duration-500 ${color}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="w-8 shrink-0 text-gray-500">{count}</span>
+    </div>
+  );
+}
+
 export type CohortInfo = {
   id: string;
   name: string;
@@ -104,7 +130,7 @@ export function CohortCard({ cohort }: { cohort: CohortInfo }) {
         )}
       </div>
 
-      {/* Stats */}
+      {/* Stats grid */}
       <div className="mt-3 grid grid-cols-4 gap-2 text-center">
         <div>
           <p className="text-xl font-bold">{cohort.memberCount}</p>
@@ -123,6 +149,30 @@ export function CohortCard({ cohort }: { cohort: CohortInfo }) {
           <p className="text-xs text-gray-500">churn</p>
         </div>
       </div>
+
+      {/* Funnel bar */}
+      {cohort.memberCount > 0 && (
+        <div className="mt-3 space-y-1">
+          <FunnelBar
+            label="Activos"
+            count={cohort.memberCount - cohort.convertedCount - cohort.churnedCount}
+            total={cohort.memberCount}
+            color="bg-blue-400"
+          />
+          <FunnelBar
+            label="Convertidos"
+            count={cohort.convertedCount}
+            total={cohort.memberCount}
+            color="bg-emerald-500"
+          />
+          <FunnelBar
+            label="Churn"
+            count={cohort.churnedCount}
+            total={cohort.memberCount}
+            color="bg-red-400"
+          />
+        </div>
+      )}
 
       {/* Broadcast button */}
       {cohort.memberCount > 0 && (

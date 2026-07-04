@@ -1,7 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdmin } from "@supabase/supabase-js";
 import { LogoutButton } from "@/components/dashboard/LogoutButton";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+
+const supabaseAdmin = createAdmin(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+);
 
 export default async function DashboardLayout({
   children,
@@ -14,6 +21,13 @@ export default async function DashboardLayout({
   if (error || !data?.user) {
     redirect("/login");
   }
+
+  // Track last login for admin churn panel (fire-and-forget, non-blocking)
+  supabaseAdmin
+    .from("clinics")
+    .update({ owner_last_login_at: new Date().toISOString() })
+    .eq("owner_id", data.user.id)
+    .then(() => {});
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/40">

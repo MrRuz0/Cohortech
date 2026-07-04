@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/followups",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/score-patients",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-summary",
+      "schedule": "0 9 * * 1"
     }
   ]
 }
