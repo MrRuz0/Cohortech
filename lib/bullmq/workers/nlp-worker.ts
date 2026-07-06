@@ -59,7 +59,7 @@ export const nlpWorker = new Worker<NlpJobData>(
     const [clinicRes, patientRes] = await Promise.all([
       supabaseAdmin
         .from("clinics")
-        .select("id, name, wa_session_id, receptionist_phone")
+        .select("id, name, wa_session_id, receptionist_phone, settings")
         .eq("id", clinicId)
         .single(),
       supabaseAdmin
@@ -85,6 +85,7 @@ export const nlpWorker = new Worker<NlpJobData>(
           patientName: patient.full_name,
           messageText: text,
           nlpResult: result,
+          clinicSettings: (clinic.settings as any) ?? {},
         });
 
         if (responseText) {

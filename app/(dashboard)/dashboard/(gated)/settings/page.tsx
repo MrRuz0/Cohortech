@@ -2,6 +2,13 @@ import Link from "next/link";
 
 const sections = [
   {
+    href: "/dashboard/settings/tools",
+    title: "Herramientas del sistema",
+    description:
+      "Servicios, precios, horarios, link de reserva y descuentos que el bot puede usar.",
+    icon: "⚙️",
+  },
+  {
     href: "/dashboard/settings/profile",
     title: "Mi Clínica",
     description: "Tu cuenta, correo, nombre y datos esenciales de la clínica.",

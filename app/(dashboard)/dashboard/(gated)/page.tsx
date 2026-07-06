@@ -8,11 +8,18 @@ export default async function DashboardPage() {
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("id, name, wa_session_id")
+    .select("id, name, wa_session_id, settings")
     .eq("owner_id", user.user?.id ?? "")
     .single();
 
   const isConnected = !!clinic?.wa_session_id;
+  const settings = (clinic?.settings as Record<string, any>) ?? {};
+  const hasTools = !!(
+    settings.services?.length ||
+    settings.booking_link ||
+    settings.booking_phone ||
+    settings.hours
+  );
   const now = new Date();
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - 7);
@@ -102,6 +109,7 @@ export default async function DashboardPage() {
         waConnected={isConnected}
         hasPatients={hasPatients}
         hasMessages={hasMessages}
+        hasTools={hasTools}
       />
 
       {/* KPIs */}

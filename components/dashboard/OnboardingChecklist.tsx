@@ -14,12 +14,21 @@ export function OnboardingChecklist({
   waConnected,
   hasPatients,
   hasMessages,
+  hasTools,
 }: {
   waConnected: boolean;
   hasPatients: boolean;
   hasMessages: boolean;
+  hasTools: boolean;
 }) {
   const steps: Step[] = [
+    {
+      id: "tools",
+      label: "Configura tus herramientas",
+      description: "Servicios, precios, horarios y descuentos para que el bot responda bien.",
+      href: "/dashboard/settings/tools",
+      done: hasTools,
+    },
     {
       id: "wa",
       label: "Conecta tu WhatsApp",

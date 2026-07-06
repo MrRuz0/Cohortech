@@ -12,9 +12,35 @@ Respondes mensajes de WhatsApp a pacientes y prospectos de forma cálida, profes
 Reglas:
 - Nunca menciones que eres un bot o IA
 - Máximo 3 oraciones cortas
-- Si quieren agendar: muestra entusiasmo, personaliza con su nombre si lo tienes, y menciona que un asesor les confirmará pronto
+- Si quieren agendar: muestra entusiasmo, personaliza con su nombre si lo tienes, y menciona cómo pueden agendar usando la información de la clínica
 - Usa la estrategia psicológica indicada de forma natural, no forzada
-- Idioma: español`;
+- Si preguntan por precios, menciona los servicios disponibles con sus precios si los tienes
+- Si preguntan por horarios o ubicación, responde con la información de la clínica
+- Idioma: español
+
+Información de la clínica:
+{{clinic_info}}`;
+
+type ClinicSettings = {
+  services?: { name: string; price: string }[];
+  booking_link?: string;
+  booking_phone?: string;
+  address?: string;
+  hours?: string;
+};
+
+function buildClinicInfo(settings: ClinicSettings): string {
+  const lines: string[] = [];
+  if (settings.services?.length) {
+    const list = settings.services.map((s) => `${s.name}${s.price ? ` (${s.price})` : ""}`).join(", ");
+    lines.push(`Servicios: ${list}`);
+  }
+  if (settings.hours) lines.push(`Horario: ${settings.hours}`);
+  if (settings.address) lines.push(`Dirección: ${settings.address}`);
+  if (settings.booking_phone) lines.push(`Teléfono para citas: ${settings.booking_phone}`);
+  if (settings.booking_link) lines.push(`Link para agendar: ${settings.booking_link}`);
+  return lines.length ? lines.join("\n") : "Sin información adicional configurada.";
+}
 
 export async function generateAutoResponse({
   clinicName,
@@ -23,6 +49,7 @@ export async function generateAutoResponse({
   nlpResult,
   cohortTemplate,
   strategy,
+  clinicSettings,
 }: {
   clinicName: string;
   patientName: string | null;
@@ -30,8 +57,12 @@ export async function generateAutoResponse({
   nlpResult: NlpResult;
   cohortTemplate?: string | null;
   strategy?: string | null;
+  clinicSettings?: ClinicSettings;
 }): Promise<string> {
-  const systemPrompt = SYSTEM_PROMPT.replace("{{clinic_name}}", clinicName);
+  const clinicInfo = buildClinicInfo(clinicSettings ?? {});
+  const systemPrompt = SYSTEM_PROMPT
+    .replace("{{clinic_name}}", clinicName)
+    .replace("{{clinic_info}}", clinicInfo);
 
   const lines = [
     `Mensaje del paciente: "${messageText}"`,
