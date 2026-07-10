@@ -38,6 +38,15 @@ export async function getQrCode(instanceName: string) {
   return res.json();
 }
 
+export async function logoutInstance(instanceName: string) {
+  const res = await fetch(`${BASE_URL}/instance/logout/${instanceName}`, {
+    method: "DELETE",
+    headers: headers(),
+  });
+  if (!res.ok) throw new Error(`Evolution logout failed: ${res.status}`);
+  return res.json();
+}
+
 export async function setWebhook(instanceName: string, webhookUrl: string) {
   const res = await fetch(`${BASE_URL}/webhook/set/${instanceName}`, {
     method: "POST",
