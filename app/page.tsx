@@ -84,7 +84,7 @@ export default function LandingPage() {
           </Link>
           <Link href="/register">
             <Button className="bg-gradient-to-r from-[var(--brand-from)] to-[var(--brand-to)] hover:opacity-90">
-              Empezar gratis
+              Empezar
             </Button>
           </Link>
         </div>
@@ -111,7 +111,7 @@ export default function LandingPage() {
                 size="lg"
                 className="bg-gradient-to-r from-[var(--brand-from)] to-[var(--brand-to)] text-base hover:opacity-90"
               >
-                Empezar prueba gratis
+                Empezar
               </Button>
             </Link>
           </div>
@@ -181,7 +181,7 @@ export default function LandingPage() {
             </ul>
             <Link href="/register" className="mt-6 block">
               <Button className="w-full bg-gradient-to-r from-[var(--brand-from)] to-[var(--brand-to)] hover:opacity-90">
-                Empezar prueba gratis
+                Empezar
               </Button>
             </Link>
           </div>
