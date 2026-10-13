@@ -2,9 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  // Rutas públicas (sin sesión): webhooks, crons, canales externos, salud y el widget.
   const isPublicApiRoute =
-    request.nextUrl.pathname.startsWith("/api/webhooks") ||
-    request.nextUrl.pathname.startsWith("/api/cron");
+    path.startsWith("/api/webhooks") ||
+    path.startsWith("/api/cron") ||
+    path.startsWith("/api/channels") ||
+    path.startsWith("/api/health") ||
+    path === "/cohortech-widget.js";
 
   if (isPublicApiRoute) {
     return NextResponse.next({ request });

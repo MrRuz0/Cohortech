@@ -64,18 +64,40 @@ export async function setWebhook(instanceName: string, webhookUrl: string) {
   return res.json();
 }
 
+/** URL de webhook de una clínica, con el token compartido si está configurado. */
+export function webhookUrlFor(clinicId: string): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const token = process.env.WEBHOOK_SECRET;
+  const url = `${base}/api/webhooks/wa/${clinicId}`;
+  return token ? `${url}?token=${encodeURIComponent(token)}` : url;
+}
+
 export async function sendTextMessage(
   instanceName: string,
   number: string,
-  text: string
+  text: string,
+  opts?: { delayMs?: number }
 ) {
+  const body: Record<string, unknown> = { number, text };
+  // "delay" hace que WhatsApp muestre "escribiendo…" antes de enviar: se siente humano.
+  if (opts?.delayMs && opts.delayMs > 0) body.delay = Math.round(opts.delayMs);
   const res = await fetch(`${BASE_URL}/message/sendText/${instanceName}`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ number, text }),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
-  if (!res.ok) throw new Error(`Evolution sendText failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Evolution sendText failed: ${res.status} ${detail.slice(0, 200)}`);
+  }
   return res.json();
+}
+
+/** Id del mensaje enviado (para reconocer el "eco" del webhook). */
+export function sentMessageId(response: unknown): string | null {
+  const r = response as { key?: { id?: string }; data?: { key?: { id?: string } } } | null;
+  return r?.key?.id ?? r?.data?.key?.id ?? null;
 }
 
 export async function fetchMessages(instanceName: string, remoteJid?: string) {

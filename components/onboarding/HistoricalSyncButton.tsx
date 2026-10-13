@@ -4,7 +4,7 @@ import { useState } from "react";
 
 export function HistoricalSyncButton() {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [result, setResult] = useState<{ imported: number; queued: number } | null>(null);
+  const [result, setResult] = useState<{ imported: number; patients: number } | null>(null);
 
   async function handleSync() {
     setStatus("loading");
@@ -24,17 +24,17 @@ export function HistoricalSyncButton() {
       <button
         onClick={handleSync}
         disabled={status === "loading"}
-        className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {status === "loading" ? "Sincronizando..." : "Sincronizar historial de WhatsApp"}
       </button>
       {status === "done" && result && (
-        <p className="text-sm text-green-700">
-          {result.imported} mensajes importados, {result.queued} en análisis.
+        <p className="text-sm text-exito">
+          {result.patients} pacientes y {result.imported} mensajes importados. No se envió ningún mensaje.
         </p>
       )}
       {status === "error" && (
-        <p className="text-sm text-red-600">Error al sincronizar el historial.</p>
+        <p className="text-sm text-error">Error al sincronizar el historial.</p>
       )}
     </div>
   );

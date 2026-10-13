@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireClinic } from "@/lib/conversation/auth";
+import { admin } from "@/lib/conversation/db";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const supabase = await createClient();
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function PATCH(request: NextRequest, { params }: Ctx) {
+  const ctx = await requireClinic();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
   const allowed = [
     "name",
     "behavioral_description",
@@ -28,34 +24,33 @@ export async function PATCH(
     if (key in body) updates[key] = body[key];
   }
 
-  const { error } = await supabase
+  const { data, error } = await admin()
     .from("cohort_definitions")
     .update(updates)
-    .eq("id", id);
+    .eq("id", id)
+    .eq("clinic_id", ctx.clinicId)
+    .select("id")
+    .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
+  if (!data) return NextResponse.json({ error: "Cohorte no encontrada" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const supabase = await createClient();
+export async function DELETE(_request: NextRequest, { params }: Ctx) {
+  const ctx = await requireClinic();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { error } = await supabase
+  const { data, error } = await admin()
     .from("cohort_definitions")
     .update({ is_active: false })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("clinic_id", ctx.clinicId)
+    .select("id")
+    .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
+  if (!data) return NextResponse.json({ error: "Cohorte no encontrada" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

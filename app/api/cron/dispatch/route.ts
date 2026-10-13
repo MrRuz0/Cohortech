@@ -1,56 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { sendTextMessage } from "@/lib/evolution/client";
+import { sendToChannel } from "@/lib/channels/send";
+import { admin, getClinic, getPromotions, getSchemaFlags, mapPatient } from "@/lib/conversation/db";
+import { cleanFirstName } from "@/lib/conversation/normalize";
+import { activePromotions, promoLine } from "@/lib/conversation/promotions";
+import { inSendingWindow, jitter } from "@/lib/conversation/window";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const maxDuration = 60;
 
-// ── Reglas de negocio ────────────────────────────────────────────
-const DEFAULT_INACTIVITY_DAYS = 90; // umbral por defecto si la clínica no lo configuró
-const DAYS_BETWEEN_ATTEMPTS = 3; // 48-72h según la especificación original
+// ── Reglas de negocio ────────────────────────────────────────────────
+const DEFAULT_INACTIVITY_DAYS = 90;
+const DAYS_BETWEEN_ATTEMPTS = 3;
 const MAX_ATTEMPTS = 2;
 const COOLDOWN_MONTHS_AFTER_EXHAUSTED = 12;
-const MAX_MESSAGES_PER_CLINIC = 30; // protección básica de volumen por corrida
+const MAX_MESSAGES_PER_CLINIC = 20;
+const TIME_BUDGET_MS = 48_000;
 
-// 10 variantes reales para no sonar repetitivo entre pacientes distintos.
-const REACTIVATION_MESSAGES = [
-  "Hola {{name}}, en {{clinic}} notamos que no te vemos hace un tiempo. ¿Todo bien? Nos encantaría verte de nuevo.",
-  "Hola {{name}}, ha pasado un tiempo desde tu última visita a {{clinic}}. ¿Agendamos tu próxima cita?",
-  "Hola {{name}}, en {{clinic}} te tenemos presente. ¿Qué tal si retomamos tu cuidado?",
-  "Hola {{name}}, queremos saber cómo has estado. ¿Te gustaría agendar en {{clinic}} pronto?",
-  "Hola {{name}}, esperamos que estés muy bien. Cuando quieras retomar tu cuidado en {{clinic}}, aquí estamos.",
-  "Hola {{name}}, en {{clinic}} tenemos disponibilidad esta semana. ¿Coordinamos tu visita?",
-  "Hola {{name}}, ¿cómo van las cosas? Nos gustaría verte de nuevo por {{clinic}}.",
-  "Hola {{name}}, todo el equipo de {{clinic}} te manda un saludo. ¿Agendamos tu próxima sesión?",
-  "Hola {{name}}, en {{clinic}} siempre es un gusto atenderte. ¿Coordinamos tu próxima visita?",
-  "Hola {{name}}, ¿te gustaría programar tu próxima cita en {{clinic}}?",
+const BASE_MESSAGES = [
+  "Hola{name}, en {clinic} notamos que no te vemos hace un tiempo. ¿Todo bien? Nos encantaría verte de nuevo.",
+  "Hola{name}, ha pasado un tiempo desde tu última visita a {clinic}. ¿Agendamos tu próxima cita?",
+  "Hola{name}, en {clinic} te tenemos presente. ¿Qué tal si retomamos tu cuidado?",
+  "Hola{name}, queremos saber cómo has estado. ¿Te gustaría agendar en {clinic} pronto?",
+  "Hola{name}, esperamos que estés muy bien. Cuando quieras retomar tu cuidado en {clinic}, aquí estamos.",
+  "Hola{name}, en {clinic} tenemos disponibilidad esta semana. ¿Coordinamos tu visita?",
+  "Hola{name}, ¿cómo van las cosas? Nos gustaría verte de nuevo por {clinic}.",
+  "Hola{name}, todo el equipo de {clinic} te manda un saludo. ¿Agendamos tu próxima sesión?",
+  "Hola{name}, en {clinic} siempre es un gusto atenderte. ¿Coordinamos tu próxima visita?",
+  "Hola{name}, ¿te gustaría programar tu próxima cita en {clinic}?",
 ];
 
-function pickMessage(clinicName: string, patientName: string | null): string {
-  const text = REACTIVATION_MESSAGES[Math.floor(Math.random() * REACTIVATION_MESSAGES.length)];
-  return text
-    .replaceAll("{{clinic}}", clinicName)
-    .replaceAll("{{name}}", patientName ?? "");
+// Solo se usan cuando la clínica tiene una promoción REAL vigente.
+const PROMO_MESSAGES = [
+  "Hola{name}, en {clinic} tenemos algo para ti:\n{promo}\n¿Te gustaría aprovecharlo?",
+  "Hola{name}, te escribimos de {clinic} porque hay una promoción vigente:\n{promo}\nSi te interesa, te ayudo a agendar.",
+  "Hola{name}, hace tiempo que no nos visitas y queremos invitarte a volver:\n{promo}\n¿Coordinamos tu cita?",
+  "Hola{name}, desde {clinic}: aprovecha esto antes de que termine:\n{promo}\nCuéntame si te ayudo a reservar.",
+];
+
+function pickMessage(clinicName: string, patientName: string | null, promoText: string | null): string {
+  const pool = promoText ? PROMO_MESSAGES : BASE_MESSAGES;
+  const tpl = pool[Math.floor(Math.random() * pool.length)];
+  const name = cleanFirstName(patientName);
+  return tpl
+    .replace("{name}", name ? `, ${name}` : "")
+    .replaceAll("{clinic}", clinicName)
+    .replace("{promo}", promoText ?? "")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 export async function GET(request: NextRequest) {
-  if (
-    request.headers.get("authorization") !==
-    `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now();
+  const db = admin();
+  const flags = await getSchemaFlags();
   const now = new Date();
 
-  const { data: clinics } = await supabaseAdmin
-    .from("clinics")
-    .select("id, name, wa_session_id, settings")
-    .not("wa_session_id", "is", null);
-
-  if (!clinics?.length) {
+  const { data: clinicRows } = await db.from("clinics").select("id").not("wa_session_id", "is", null);
+  if (!clinicRows?.length) {
     return NextResponse.json({ ok: true, firstAttempt: 0, secondAttempt: 0, paused: 0, reactivated: 0 });
   }
 
@@ -58,37 +67,63 @@ export async function GET(request: NextRequest) {
   let secondAttempt = 0;
   let paused = 0;
   let reactivated = 0;
+  let skippedWindow = 0;
 
-  for (const clinic of clinics) {
+  for (const { id } of clinicRows) {
+    if (Date.now() - startedAt > TIME_BUDGET_MS) break;
+    const clinic = await getClinic(id);
+    if (!clinic?.waSessionId || clinic.botPaused) continue;
+    if (!inSendingWindow(clinic.timezone, now)) {
+      skippedWindow++;
+      continue;
+    }
+
     const inactivityDays =
-      (clinic.settings as any)?.reactivation_after_days ?? DEFAULT_INACTIVITY_DAYS;
-    const cutoff = new Date(now.getTime() - inactivityDays * 24 * 60 * 60 * 1000).toISOString();
+      typeof clinic.settings.reactivation_after_days === "number"
+        ? (clinic.settings.reactivation_after_days as number)
+        : DEFAULT_INACTIVITY_DAYS;
+    const cutoff = new Date(now.getTime() - inactivityDays * 86_400_000).toISOString();
 
-    const { data: patients } = await supabaseAdmin
+    let query = db
       .from("patients")
-      .select(
-        "id, full_name, phone_e164, last_contact_at, reactivation_attempts_count, last_reactivation_sent_at, reactivation_paused_until"
-      )
+      .select("*")
       .eq("clinic_id", clinic.id)
+      .not("last_contact_at", "is", null)
       .lte("last_contact_at", cutoff)
       .or(`reactivation_paused_until.is.null,reactivation_paused_until.lt.${now.toISOString()}`)
-      .limit(MAX_MESSAGES_PER_CLINIC);
+      .or("channel_source.is.null,channel_source.eq.whatsapp")
+      .order("last_contact_at", { ascending: true })
+      .limit(MAX_MESSAGES_PER_CLINIC * 2);
+    if (flags.patientsExtended) query = query.or("is_blocked.is.null,is_blocked.eq.false");
 
+    const { data: patients, error } = await query;
+    if (error) {
+      console.error(`[dispatch] consulta falló (${clinic.name}):`, error.message);
+      continue;
+    }
     if (!patients?.length) continue;
 
-    for (const patient of patients) {
-      const count = patient.reactivation_attempts_count ?? 0;
-      const lastSentAt = patient.last_reactivation_sent_at
-        ? new Date(patient.last_reactivation_sent_at)
-        : null;
-      const lastContactAt = patient.last_contact_at ? new Date(patient.last_contact_at) : null;
+    const promos = activePromotions(await getPromotions(clinic.id));
+    const generalPromo = promos.find((p) => !p.service_name) ?? promos[0] ?? null;
+    const promoText = generalPromo ? promoLine(generalPromo, clinic.timezone) : null;
 
-      // Si respondió después del último intento, sale del flujo de
-      // reactivación — el sistema de cohortes por comportamiento ya
-      // toma el relevo desde ahí.
+    let sentForClinic = 0;
+    for (const row of patients) {
+      if (sentForClinic >= MAX_MESSAGES_PER_CLINIC || Date.now() - startedAt > TIME_BUDGET_MS) break;
+
+      const patient = mapPatient(row, "whatsapp");
+      if (patient.botPausedUntil && new Date(patient.botPausedUntil).getTime() > Date.now()) continue;
+      // Solo números reales de WhatsApp (nunca ids de otros canales).
+      if (!/^\d{7,16}$/.test(patient.phone)) continue;
+
+      const count: number = row.reactivation_attempts_count ?? 0;
+      const lastSentAt = row.last_reactivation_sent_at ? new Date(row.last_reactivation_sent_at) : null;
+      const lastContactAt = row.last_contact_at ? new Date(row.last_contact_at) : null;
+
+      // Respondió después del último intento: sale del flujo y el motor conversacional toma el relevo.
       if (lastSentAt && lastContactAt && lastContactAt > lastSentAt) {
         if (count > 0) {
-          await supabaseAdmin
+          await db
             .from("patients")
             .update({ reactivation_attempts_count: 0, last_reactivation_sent_at: null })
             .eq("id", patient.id);
@@ -97,48 +132,62 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Ya se mandó un intento — esperar el intervalo antes del siguiente.
       if (lastSentAt) {
-        const daysSinceLastAttempt =
-          (now.getTime() - lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSinceLastAttempt < DAYS_BETWEEN_ATTEMPTS) continue;
+        const days = (now.getTime() - lastSentAt.getTime()) / 86_400_000;
+        if (days < DAYS_BETWEEN_ATTEMPTS) continue;
       }
 
-      // Agotó los intentos sin respuesta → cooldown extendido, no seguir
-      // insistiendo cada ciclo.
+      // Agotó los 2 intentos sin respuesta → pausa de 12 meses.
       if (count >= MAX_ATTEMPTS) {
-        const pauseUntil = new Date(now);
-        pauseUntil.setMonth(pauseUntil.getMonth() + COOLDOWN_MONTHS_AFTER_EXHAUSTED);
-        await supabaseAdmin
+        const until = new Date(now);
+        until.setMonth(until.getMonth() + COOLDOWN_MONTHS_AFTER_EXHAUSTED);
+        await db
           .from("patients")
-          .update({
-            reactivation_attempts_count: 0,
-            reactivation_paused_until: pauseUntil.toISOString(),
-          })
+          .update({ reactivation_attempts_count: 0, reactivation_paused_until: until.toISOString() })
           .eq("id", patient.id);
         paused++;
         continue;
       }
 
+      const text = pickMessage(clinic.name, patient.fullName, promoText);
       try {
-        const text = pickMessage(clinic.name, patient.full_name);
-        await sendTextMessage(clinic.wa_session_id!, patient.phone_e164, text);
-
-        await supabaseAdmin
-          .from("patients")
-          .update({
-            reactivation_attempts_count: count + 1,
-            last_reactivation_sent_at: now.toISOString(),
+        // Registrar antes de enviar: el eco del webhook se reconoce como nuestro.
+        const { data: logged } = await db
+          .from("messages")
+          .insert({
+            clinic_id: clinic.id,
+            patient_id: patient.id,
+            direction: "outbound",
+            content_text: text,
+            sent_at: new Date().toISOString(),
+            processing_status: "sent",
+            ...(flags.messagesExtended ? { channel: "whatsapp", response_source: "template" } : {}),
           })
+          .select("id")
+          .single();
+
+        try {
+          const res = await sendToChannel({ channel: "whatsapp", clinic, patient, text, delayMs: 2500 });
+          if (logged?.id && res.id) await db.from("messages").update({ wa_message_id: res.id }).eq("id", logged.id);
+        } catch (sendErr) {
+          if (logged?.id) await db.from("messages").update({ processing_status: "failed" }).eq("id", logged.id);
+          throw sendErr;
+        }
+
+        await db
+          .from("patients")
+          .update({ reactivation_attempts_count: count + 1, last_reactivation_sent_at: now.toISOString() })
           .eq("id", patient.id);
 
         if (count === 0) firstAttempt++;
         else secondAttempt++;
+        sentForClinic++;
+        await jitter();
       } catch (err) {
-        console.error(`Error enviando reactivación a ${patient.phone_e164}:`, err);
+        console.error(`[dispatch] error enviando a ${patient.phone}:`, err);
       }
     }
   }
 
-  return NextResponse.json({ ok: true, firstAttempt, secondAttempt, paused, reactivated });
+  return NextResponse.json({ ok: true, firstAttempt, secondAttempt, paused, reactivated, skippedWindow });
 }

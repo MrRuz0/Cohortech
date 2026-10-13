@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendTextMessage } from "@/lib/evolution/client";
+import { toWaNumber } from "@/lib/conversation/db";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
 
       await sendTextMessage(
         clinic.wa_session_id,
-        clinic.receptionist_phone,
+        toWaNumber(clinic.receptionist_phone),
         summary
       );
 

@@ -1,22 +1,12 @@
-import http from "http";
-import "@/lib/bullmq/workers/nlp-worker";
-import "@/lib/bullmq/workers/cohort-worker";
+// OBSOLETO. Desde el motor conversacional (migración 0010) los mensajes se
+// procesan directamente en el webhook de Vercel (lib/conversation/handle.ts):
+// ya no hace falta cola, worker de Railway ni Upstash Redis.
+//
+// Este archivo se deja solo para que un deploy antiguo no consuma Redis ni
+// responda mensajes con la lógica anterior (que no respetaba bloqueados,
+// pausas ni validaciones). Puedes apagar el servicio del worker en Railway.
 
-console.log("Workers de Cohortech iniciados.");
-
-process.on("uncaughtException", (err) => {
-  console.error("uncaughtException:", err);
-});
-
-process.on("unhandledRejection", (reason) => {
-  console.error("unhandledRejection:", reason);
-});
-
-// Railway requires an HTTP server bound to $PORT
-const port = process.env.PORT ?? 3001;
-http.createServer((_, res) => {
-  res.writeHead(200);
-  res.end("ok");
-}).listen(port, () => {
-  console.log(`Worker healthcheck server listening on port ${port}`);
-});
+console.log(
+  "[worker] Obsoleto: el procesamiento de mensajes ahora corre en Vercel. Este servicio puede apagarse."
+);
+process.exit(0);

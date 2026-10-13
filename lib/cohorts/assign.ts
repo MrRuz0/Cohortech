@@ -4,7 +4,7 @@ import type { NlpResult } from "@/lib/openai/extract-entities";
 
 let _openai: OpenAI | null = null;
 function getOpenAI() {
-  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 20_000, maxRetries: 1 });
   return _openai;
 }
 
@@ -16,6 +16,8 @@ type CohortRow = {
   conversion_strategy: string;
   message_template: string;
 };
+
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 export async function assignPatientToCohort(
   supabase: SupabaseClient,
@@ -49,7 +51,7 @@ COHORTES DISPONIBLES:
 ${cohortList}
 
 SEÑALES DEL PACIENTE:
-- Mensaje: "${messageText}"
+- Mensaje: "${messageText.slice(0, 500)}"
 - Intent: ${nlpResult.intent}
 - Señales de dolor: ${(nlpResult.pain_signals ?? []).join(", ") || "ninguna"}
 - Tratamiento: ${nlpResult.treatment_mentioned ?? "no mencionado"}
@@ -64,28 +66,46 @@ Responde ÚNICAMENTE con el UUID de la cohorte más apropiada, o con la palabra 
     temperature: 0,
   });
 
-  const answer = completion.choices[0]?.message?.content?.trim() ?? "null";
+  const answer = completion.choices[0]?.message?.content ?? "";
+  // Tolera comillas, backticks o texto alrededor del UUID.
+  const uuid = answer.match(UUID_RE)?.[0]?.toLowerCase();
+  if (!uuid) return null;
 
-  if (answer === "null" || !answer) return null;
-
-  const matched = cohorts.find((c: CohortRow) => c.id === answer) ?? null;
+  const matched = cohorts.find((c: CohortRow) => c.id.toLowerCase() === uuid) ?? null;
   if (!matched) return null;
 
-  // Booking intent = conversion. Stop the follow-up sequence immediately.
-  const isConverted = nlpResult.intent === "booking";
+  const isBooking = nlpResult.intent === "booking";
+  const now = new Date();
+
+  // Si ya existe la membresía, no la "degradamos": un paciente convertido sigue convertido.
+  const { data: existing } = await supabase
+    .from("cohort_memberships")
+    .select("membership_status")
+    .eq("patient_id", patientId)
+    .eq("cohort_id", matched.id)
+    .maybeSingle();
+
+  const alreadyConverted = existing?.membership_status === "converted";
+  const status = isBooking || alreadyConverted ? "converted" : "active";
+
+  // El primer seguimiento se programa a 2 días: nunca justo después de que el
+  // paciente escribió (antes quedaba "vencido" de inmediato).
+  const nextFollowup = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString();
 
   await supabase.from("cohort_memberships").upsert(
     {
       clinic_id: clinicId,
       patient_id: patientId,
       cohort_id: matched.id,
-      membership_status: isConverted ? "converted" : "active",
-      assigned_at: new Date().toISOString(),
-      ...(isConverted && {
-        converted_at: new Date().toISOString(),
-        conversion_type: "booking",
-        next_followup_at: null,
-      }),
+      membership_status: status,
+      assigned_at: now.toISOString(),
+      ...(status === "converted"
+        ? {
+            converted_at: now.toISOString(),
+            conversion_type: "booking",
+            next_followup_at: null,
+          }
+        : { next_followup_at: nextFollowup }),
     },
     { onConflict: "patient_id,cohort_id", ignoreDuplicates: false }
   );

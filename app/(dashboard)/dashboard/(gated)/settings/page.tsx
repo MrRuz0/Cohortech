@@ -9,6 +9,18 @@ const sections = [
     icon: "⚙️",
   },
   {
+    href: "/dashboard/settings/promotions",
+    title: "Promociones",
+    description: "Ofertas vigentes que el asistente menciona al responder precios y al reactivar pacientes.",
+    icon: "🎁",
+  },
+  {
+    href: "/dashboard/settings/assistant",
+    title: "Asistente y canales",
+    description: "Pausar el asistente, chat web, Instagram/Messenger, formas de pago y días de reactivación.",
+    icon: "🤖",
+  },
+  {
     href: "/dashboard/settings/profile",
     title: "Mi Clínica",
     description: "Tu cuenta, correo, nombre y datos esenciales de la clínica.",

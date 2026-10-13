@@ -5,6 +5,7 @@ import {
   getQrCode,
   getConnectionState,
   setWebhook,
+  webhookUrlFor,
 } from "@/lib/evolution/client";
 
 export async function GET() {
@@ -43,10 +44,7 @@ export async function GET() {
         .eq("id", clinic.id);
     }
 
-    await setWebhook(
-      instanceName,
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/wa/${clinic.id}`
-    );
+    await setWebhook(instanceName, webhookUrlFor(clinic.id));
 
     if (state?.instance?.state === "open") {
       return NextResponse.json({ connected: true });

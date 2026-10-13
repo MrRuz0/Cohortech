@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { admin, getSchemaFlags } from "@/lib/conversation/db";
 import { fetchMessages } from "@/lib/evolution/client";
-import { getNlpQueue } from "@/lib/bullmq/queues";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const maxDuration = 60;
 
 type EvolutionMessage = {
   key?: { id?: string; remoteJid?: string; fromMe?: boolean };
   message?: { conversation?: string; extendedTextMessage?: { text?: string } };
-  messageTimestamp?: number;
+  messageTimestamp?: number | string;
   pushName?: string;
 };
 
+/**
+ * Importa el historial de WhatsApp SOLO para conocer pacientes y fechas reales
+ * de último contacto. No responde nada: antes esto disparaba respuestas
+ * automáticas a conversaciones de hace meses.
+ */
 export async function POST() {
   const supabase = await createServerSupabaseClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -24,17 +25,17 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: clinic } = await supabaseAdmin
+  const db = admin();
+  const flags = await getSchemaFlags();
+
+  const { data: clinic } = await db
     .from("clinics")
     .select("id, wa_session_id")
     .eq("owner_id", userData.user.id)
     .single();
 
   if (!clinic?.wa_session_id) {
-    return NextResponse.json(
-      { error: "WhatsApp no conectado" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "WhatsApp no conectado" }, { status: 400 });
   }
 
   const result = await fetchMessages(clinic.wa_session_id);
@@ -42,105 +43,92 @@ export async function POST() {
     ? result
     : result?.messages?.records ?? result?.records ?? [];
 
-  let imported = 0;
-  let queued = 0;
-
-  // Rastrea el mensaje más reciente REAL por número, para no sobreescribir
-  // last_contact_at con la fecha de "ahora" (bug anterior) — necesitamos la
-  // fecha verdadera del último mensaje para que la detección de
-  // inactividad funcione con datos reales, no con la hora de la sincronización.
-  const latestContactByPhone = new Map<string, number>();
+  const latestInboundByPhone = new Map<string, { ms: number; name: string | null; jid: string }>();
+  const rows: Record<string, unknown>[] = [];
+  const phonesSeen = new Set<string>();
 
   for (const msg of messages) {
     const key = msg.key;
-    const waMessageId = key?.id;
-    const phoneE164 = key?.remoteJid?.split("@")[0];
-    const text =
-      msg.message?.conversation ?? msg.message?.extendedTextMessage?.text ?? "";
-    const direction = key?.fromMe ? "outbound" : "inbound";
+    const jid = key?.remoteJid ?? "";
+    // Solo chats directos (no grupos, estados ni canales).
+    if (!key?.id || !jid.endsWith("@s.whatsapp.net")) continue;
+    const phone = jid.split("@")[0].replace(/\D/g, "");
+    if (!/^\d{7,16}$/.test(phone)) continue;
 
-    if (!waMessageId || !phoneE164) continue;
+    const text = msg.message?.conversation ?? msg.message?.extendedTextMessage?.text ?? "";
+    const tsRaw = Number(msg.messageTimestamp ?? 0);
+    const ms = tsRaw ? (tsRaw < 1e12 ? tsRaw * 1000 : tsRaw) : Date.now();
+    const inbound = key.fromMe !== true;
 
-    const messageEpochMs = msg.messageTimestamp
-      ? msg.messageTimestamp * 1000
-      : Date.now();
-    const currentLatest = latestContactByPhone.get(phoneE164) ?? 0;
-    if (messageEpochMs > currentLatest) {
-      latestContactByPhone.set(phoneE164, messageEpochMs);
+    phonesSeen.add(phone);
+    if (inbound) {
+      const cur = latestInboundByPhone.get(phone);
+      if (!cur || ms > cur.ms) {
+        latestInboundByPhone.set(phone, { ms, name: msg.pushName ?? null, jid });
+      }
     }
 
-    const { data: patient } = await supabaseAdmin
-      .from("patients")
-      .upsert(
-        {
-          clinic_id: clinic.id,
-          phone_e164: phoneE164,
-          full_name: msg.pushName ?? null,
-          wa_contact_id: key?.remoteJid,
-          channel_source: "whatsapp",
-        },
-        { onConflict: "clinic_id,phone_e164", ignoreDuplicates: false }
-      )
-      .select("id")
-      .single();
-
-    const { data: messageRow, error } = await supabaseAdmin
-      .from("messages")
-      .upsert(
-        {
-          clinic_id: clinic.id,
-          patient_id: patient?.id ?? null,
-          wa_message_id: waMessageId,
-          direction,
-          content_text: text,
-          sent_at: msg.messageTimestamp
-            ? new Date(msg.messageTimestamp * 1000).toISOString()
-            : new Date().toISOString(),
-          processing_status: "pending",
-        },
-        { onConflict: "wa_message_id", ignoreDuplicates: true }
-      )
-      .select("id")
-      .single();
-
-    if (error || !messageRow) continue;
-    imported++;
-
-    if (direction === "inbound" && text) {
-      await getNlpQueue().add("extract-entities", {
-        messageId: messageRow.id,
-        clinicId: clinic.id,
-        patientId: patient?.id,
-        text,
-      });
-      queued++;
-    }
+    rows.push({
+      phone,
+      row: {
+        clinic_id: clinic.id,
+        wa_message_id: key.id,
+        direction: inbound ? "inbound" : "outbound",
+        content_text: text,
+        sent_at: new Date(ms).toISOString(),
+        processing_status: "processed",
+        ...(flags.messagesExtended ? { channel: "whatsapp", response_source: inbound ? null : "human" } : {}),
+      },
+    });
   }
 
-  // Ahora sí: escribimos la fecha REAL del último mensaje de cada número,
-  // solo si es más reciente que lo que ya había (evita pisar datos buenos
-  // con historial viejo si se corre la sincronización más de una vez).
-  for (const [phoneE164, latestMs] of latestContactByPhone) {
-    const { data: existing } = await supabaseAdmin
+  // 1) Pacientes: solo con fecha REAL del último mensaje del paciente.
+  const patientIds = new Map<string, string>();
+  for (const phone of phonesSeen) {
+    const inboundInfo = latestInboundByPhone.get(phone);
+    const { data: existing } = await db
       .from("patients")
-      .select("id, last_contact_at")
+      .select("id, last_contact_at, full_name")
       .eq("clinic_id", clinic.id)
-      .eq("phone_e164", phoneE164)
-      .single();
+      .eq("phone_e164", phone)
+      .maybeSingle();
 
-    if (!existing) continue;
-
-    const existingMs = existing.last_contact_at
-      ? new Date(existing.last_contact_at).getTime()
-      : 0;
-
-    if (latestMs > existingMs) {
-      await supabaseAdmin
-        .from("patients")
-        .update({ last_contact_at: new Date(latestMs).toISOString() })
-        .eq("id", existing.id);
+    if (existing) {
+      patientIds.set(phone, existing.id);
+      if (inboundInfo) {
+        const cur = existing.last_contact_at ? new Date(existing.last_contact_at).getTime() : 0;
+        const upd: Record<string, unknown> = {};
+        if (inboundInfo.ms > cur) upd.last_contact_at = new Date(inboundInfo.ms).toISOString();
+        if (!existing.full_name && inboundInfo.name) upd.full_name = inboundInfo.name;
+        if (Object.keys(upd).length) await db.from("patients").update(upd).eq("id", existing.id);
+      }
+      continue;
     }
+
+    const { data: created } = await db
+      .from("patients")
+      .insert({
+        clinic_id: clinic.id,
+        phone_e164: phone,
+        full_name: inboundInfo?.name ?? null,
+        wa_contact_id: inboundInfo?.jid ?? null,
+        channel_source: "whatsapp",
+        status: "lead",
+        last_contact_at: inboundInfo ? new Date(inboundInfo.ms).toISOString() : null,
+      })
+      .select("id")
+      .single();
+    if (created) patientIds.set(phone, created.id);
   }
 
-  return NextResponse.json({ imported, queued });
+  // 2) Mensajes (idempotente por wa_message_id).
+  let imported = 0;
+  for (const { phone, row } of rows as { phone: string; row: Record<string, unknown> }[]) {
+    const patientId = patientIds.get(phone);
+    if (!patientId) continue;
+    const { error } = await db.from("messages").insert({ ...row, patient_id: patientId });
+    if (!error) imported++;
+  }
+
+  return NextResponse.json({ imported, patients: patientIds.size });
 }
