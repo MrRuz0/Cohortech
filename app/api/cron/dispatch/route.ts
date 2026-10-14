@@ -58,7 +58,15 @@ export async function GET(request: NextRequest) {
   const flags = await getSchemaFlags();
   const now = new Date();
 
-  const { data: clinicRows } = await db.from("clinics").select("id").not("wa_session_id", "is", null);
+  // ?clinic=<id> limita la corrida a una clínica; ?preview=1 solo informa, sin enviar ni modificar nada.
+  const params = new URL(request.url).searchParams;
+  const onlyClinic = params.get("clinic");
+  const preview = params.get("preview") === "1";
+  const wouldSend: { clinic: string; phone: string; attempt: number }[] = [];
+
+  let clinicQuery = db.from("clinics").select("id").not("wa_session_id", "is", null);
+  if (onlyClinic) clinicQuery = clinicQuery.eq("id", onlyClinic);
+  const { data: clinicRows } = await clinicQuery;
   if (!clinicRows?.length) {
     return NextResponse.json({ ok: true, firstAttempt: 0, secondAttempt: 0, paused: 0, reactivated: 0 });
   }
@@ -71,9 +79,9 @@ export async function GET(request: NextRequest) {
 
   for (const { id } of clinicRows) {
     if (Date.now() - startedAt > TIME_BUDGET_MS) break;
-    const clinic = await getClinic(id);
+    const clinic = await getClinic(id, true);
     if (!clinic?.waSessionId || clinic.botPaused || !clinic.modules.recovery) continue;
-    if (!inSendingWindow(clinic.timezone, now)) {
+    if (clinic.settings.dry_run !== true && !inSendingWindow(clinic.timezone, now)) {
       skippedWindow++;
       continue;
     }
@@ -123,10 +131,12 @@ export async function GET(request: NextRequest) {
       // Respondió después del último intento: sale del flujo y el motor conversacional toma el relevo.
       if (lastSentAt && lastContactAt && lastContactAt > lastSentAt) {
         if (count > 0) {
-          await db
-            .from("patients")
-            .update({ reactivation_attempts_count: 0, last_reactivation_sent_at: null })
-            .eq("id", patient.id);
+          if (!preview) {
+            await db
+              .from("patients")
+              .update({ reactivation_attempts_count: 0, last_reactivation_sent_at: null })
+              .eq("id", patient.id);
+          }
           reactivated++;
         }
         continue;
@@ -141,11 +151,21 @@ export async function GET(request: NextRequest) {
       if (count >= MAX_ATTEMPTS) {
         const until = new Date(now);
         until.setMonth(until.getMonth() + COOLDOWN_MONTHS_AFTER_EXHAUSTED);
-        await db
-          .from("patients")
-          .update({ reactivation_attempts_count: 0, reactivation_paused_until: until.toISOString() })
-          .eq("id", patient.id);
+        if (!preview) {
+          await db
+            .from("patients")
+            .update({ reactivation_attempts_count: 0, reactivation_paused_until: until.toISOString() })
+            .eq("id", patient.id);
+        }
         paused++;
+        continue;
+      }
+
+      if (preview) {
+        wouldSend.push({ clinic: clinic.name, phone: `…${patient.phone.slice(-4)}`, attempt: count + 1 });
+        if (count === 0) firstAttempt++;
+        else secondAttempt++;
+        sentForClinic++;
         continue;
       }
 
@@ -189,5 +209,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, firstAttempt, secondAttempt, paused, reactivated, skippedWindow });
+  return NextResponse.json({
+    ok: true,
+    ...(preview ? { preview: true, wouldSend } : {}),
+    firstAttempt,
+    secondAttempt,
+    paused,
+    reactivated,
+    skippedWindow,
+  });
 }

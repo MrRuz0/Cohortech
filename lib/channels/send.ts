@@ -32,6 +32,9 @@ export async function sendToChannel(params: {
 }): Promise<{ id: string | null }> {
   const { channel, clinic, patient, text } = params;
 
+  // Clínica en modo simulación: toda la lógica corre igual, pero no sale nada al exterior.
+  if (clinic.settings.dry_run === true) return { id: `dry:${Date.now()}-${Math.random().toString(16).slice(2, 8)}` };
+
   if (channel === "webchat") return { id: null };
 
   if (channel === "whatsapp") {

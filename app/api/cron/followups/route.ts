@@ -20,7 +20,13 @@ export async function GET(request: NextRequest) {
   const db = admin();
   const nowIso = new Date().toISOString();
 
-  const { data: memberships, error } = await db
+  // ?clinic=<id> limita la corrida a una clínica; ?preview=1 solo informa, sin enviar ni modificar nada.
+  const params = new URL(request.url).searchParams;
+  const onlyClinic = params.get("clinic");
+  const preview = params.get("preview") === "1";
+  const wouldSend: { clinic: string; phone: string; stage: number }[] = [];
+
+  let query = db
     .from("cohort_memberships")
     .select(
       `id, patient_id, cohort_id, clinic_id, followup_stage, last_messaged_at, message_count,
@@ -32,6 +38,8 @@ export async function GET(request: NextRequest) {
     .lte("next_followup_at", nowIso)
     .order("next_followup_at", { ascending: true })
     .limit(MAX_PER_RUN * 3);
+  if (onlyClinic) query = query.eq("clinic_id", onlyClinic);
+  const { data: memberships, error } = await query;
 
   if (error) {
     console.error("[followups] consulta falló:", error.message);
@@ -58,14 +66,14 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
-    const clinic = await getClinic(m.clinic_id);
+    const clinic = await getClinic(m.clinic_id, !!onlyClinic);
     if (!clinic?.waSessionId) {
       skip("no_whatsapp");
       continue;
     }
 
     // Reglas de respeto: nada fuera de horario, a bloqueados, en pausa o por otros canales.
-    if (!inSendingWindow(clinic.timezone)) {
+    if (clinic.settings.dry_run !== true && !inSendingWindow(clinic.timezone)) {
       skip("outside_window");
       continue;
     }
@@ -95,21 +103,31 @@ export async function GET(request: NextRequest) {
       Date.now() - new Date(patientRow.last_contact_at).getTime() < RECENT_CONTACT_HOURS * 3_600_000
     ) {
       // Escribió hace poco: está en conversación, no es momento de un seguimiento.
-      await db
-        .from("cohort_memberships")
-        .update({ next_followup_at: new Date(Date.now() + 2 * 86_400_000).toISOString() })
-        .eq("id", m.id);
+      if (!preview) {
+        await db
+          .from("cohort_memberships")
+          .update({ next_followup_at: new Date(Date.now() + 2 * 86_400_000).toISOString() })
+          .eq("id", m.id);
+      }
       skip("recent_contact");
       continue;
     }
 
     const nextStage = (m.followup_stage ?? 0) + 1;
     if (nextStage > MAX_FOLLOWUP_STAGES) {
-      await db
-        .from("cohort_memberships")
-        .update({ membership_status: "churned", churned_at: nowIso, next_followup_at: null })
-        .eq("id", m.id);
+      if (!preview) {
+        await db
+          .from("cohort_memberships")
+          .update({ membership_status: "churned", churned_at: nowIso, next_followup_at: null })
+          .eq("id", m.id);
+      }
       churned++;
+      continue;
+    }
+
+    if (preview) {
+      wouldSend.push({ clinic: clinic.name, phone: `…${patient.phone.slice(-4)}`, stage: nextStage });
+      sent++;
       continue;
     }
 
@@ -158,13 +176,17 @@ export async function GET(request: NextRequest) {
       }
       if (logged?.id && waId) await db.from("messages").update({ wa_message_id: waId }).eq("id", logged.id);
 
-      const nextFollowupAt = new Date(Date.now() + decision.nextFollowupDays * 86_400_000);
+      // Tras la oferta final se agenda una última pasada a 7 días: si no hubo respuesta,
+      // la membresía pasa a "churned" (antes quedaba activa para siempre y nunca se contaba).
+      const nextFollowupAt = new Date(
+        Date.now() + (decision.isFinalOffer ? 7 : decision.nextFollowupDays) * 86_400_000
+      );
       await db
         .from("cohort_memberships")
         .update({
           followup_stage: nextStage,
           last_messaged_at: nowIso,
-          next_followup_at: decision.isFinalOffer ? null : nextFollowupAt.toISOString(),
+          next_followup_at: nextFollowupAt.toISOString(),
           message_count: (m.message_count ?? 0) + 1,
         })
         .eq("id", m.id);
@@ -186,5 +208,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, sent, churned, skipped, reasons });
+  return NextResponse.json({
+    ok: true,
+    ...(preview ? { preview: true, wouldSend } : {}),
+    sent,
+    churned,
+    skipped,
+    reasons,
+  });
 }
