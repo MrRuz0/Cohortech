@@ -165,6 +165,7 @@ async function applyPatientUpdates(params: {
   intent: string | null;
   aiName?: string | null;
   isExisting?: boolean | null;
+  recoveryEngaged?: boolean;
 }) {
   const { patient, updates, flags } = params;
   const now = new Date();
@@ -198,6 +199,7 @@ async function applyPatientUpdates(params: {
     profile.objections = list.slice(-5);
   }
   if (params.intent) profile.last_intent = params.intent;
+  if (params.recoveryEngaged) profile.recovery_engaged_at = now.toISOString();
   upd.extracted_profile = profile;
 
   if (!patient.fullName && params.aiName && cleanFirstName(params.aiName)) upd.full_name = params.aiName.slice(0, 80);
@@ -285,6 +287,28 @@ async function classifyCohort(params: {
   }
 }
 
+const RECOVERY_WINDOW_DAYS = 30;
+
+/** ¿Este paciente está siendo recuperado (reactivación o seguimiento recientes)? */
+async function isInRecoveryFlow(patientRow: Record<string, any>): Promise<boolean> {
+  const since = Date.now() - RECOVERY_WINDOW_DAYS * 86_400_000;
+  const reactivatedAt = patientRow.last_reactivation_sent_at
+    ? new Date(patientRow.last_reactivation_sent_at).getTime()
+    : 0;
+  if (reactivatedAt > since) return true;
+
+  // Ya venía conversando dentro del flujo (el cron limpia la marca de reactivación al responder).
+  const engaged = patientRow.extracted_profile?.recovery_engaged_at;
+  if (engaged && new Date(engaged).getTime() > since) return true;
+
+  const { count } = await admin()
+    .from("followup_log")
+    .select("id", { count: "exact", head: true })
+    .eq("patient_id", patientRow.id)
+    .gte("sent_at", new Date(since).toISOString());
+  return (count ?? 0) > 0;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Punto de entrada: un mensaje entrante de cualquier canal
 // ─────────────────────────────────────────────────────────────────────
@@ -360,6 +384,13 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
   if (clinic.botPaused) return finish({ status: "paused", reason: "clinic_paused" });
   if (patient.botPausedUntil && new Date(patient.botPausedUntil).getTime() > Date.now()) {
     return finish({ status: "paused", reason: "human_takeover" });
+  }
+
+  // Módulo de recepción apagado: Cohortech solo atiende a quien está en un flujo de
+  // recuperación (lo reactivamos o le dimos seguimiento). Al resto lo atiende el
+  // equipo o el producto de recepción, nunca dos "cerebros" sobre el mismo número.
+  if (!clinic.modules.reception && !(await isInRecoveryFlow(patientRow))) {
+    return finish({ status: "ignored", reason: "reception_module_off" });
   }
 
   // Juntar mensajes seguidos ("Hola" / "quiero precios" / "del lifting") en una sola respuesta.
@@ -502,6 +533,7 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
       intent: effectiveIntent ?? nlp?.intent ?? null,
       aiName,
       isExisting: nlp?.is_existing_patient ?? null,
+      recoveryEngaged: !clinic.modules.reception,
     });
   } catch (err) {
     console.error("[handle] applyPatientUpdates:", err);

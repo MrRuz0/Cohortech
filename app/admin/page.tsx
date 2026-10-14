@@ -1,4 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { isAdminUser } from "@/lib/conversation/admin";
+import { admin } from "@/lib/conversation/db";
+import { ModuleToggles } from "@/components/admin/ModuleToggles";
 
 // ── Thresholds ─────────────────────────────────────────────────
 const WA_MESSAGES_MODERATE_DAYS = 5;
@@ -105,14 +108,15 @@ const SIGNAL_STYLES: Record<string, string> = {
 };
 
 export default async function AdminPage() {
-  const supabase = await createClient();
+  // Lectura con rol de servicio: solo después de confirmar que es el administrador.
+  if (!(await isAdminUser())) redirect("/login");
 
   // Fetch all clinics with aggregated signals
-  const { data: clinics } = await supabase
+  const { data: clinics } = await admin()
     .from("clinics")
     .select(
       `id, name, wa_phone_number, wa_session_id, created_at,
-       owner_last_login_at, last_wa_message_at,
+       owner_last_login_at, last_wa_message_at, settings,
        patients(created_at)`
     )
     .order("created_at", { ascending: false });
@@ -230,6 +234,14 @@ export default async function AdminPage() {
                   </a>
                 )}
               </div>
+
+              <ModuleToggles
+                clinicId={clinic.id}
+                initial={{
+                  reception: (clinic.settings as any)?.modules?.reception !== false,
+                  recovery: (clinic.settings as any)?.modules?.recovery !== false,
+                }}
+              />
 
               {/* Signals */}
               {clinic.signals.length > 0 && (

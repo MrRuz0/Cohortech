@@ -28,6 +28,12 @@ export type ClinicContext = {
   waSessionId: string | null;
   timezone: string;
   botPaused: boolean;
+  /**
+   * Módulos contratados (se activan por clínica desde /admin):
+   *  - reception: contesta y agenda a cualquiera que escriba
+   *  - recovery:  detecta inactivos, los reactiva y les da seguimiento
+   */
+  modules: { reception: boolean; recovery: boolean };
   settings: Record<string, unknown>;
 };
 
@@ -36,6 +42,8 @@ export type PatientProfile = {
   objections?: string[];
   last_intent?: string;
   last_notified?: Record<string, string>;
+  /** Última vez que respondió dentro de un flujo de recuperación (mantiene la conversación abierta). */
+  recovery_engaged_at?: string;
 };
 
 export type PatientState = {

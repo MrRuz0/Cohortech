@@ -29,6 +29,9 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
   const clinic = await getClinic(ctx.clinicId, true);
   if (!clinic?.waSessionId) return NextResponse.json({ error: "WhatsApp no conectado" }, { status: 400 });
+  if (!clinic.modules.recovery) {
+    return NextResponse.json({ error: "El módulo de recuperación no está activo en tu plan." }, { status: 403 });
+  }
   if (clinic.botPaused) {
     return NextResponse.json({ error: "El asistente está en pausa: reactívalo para enviar." }, { status: 409 });
   }

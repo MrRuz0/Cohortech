@@ -5,7 +5,7 @@
  *
  *   npx tsx --env-file=.env.local scripts/e2e-engine.ts
  */
-import { admin, getSchemaFlags } from "../lib/conversation/db";
+import { admin, getSchemaFlags, invalidateClinic } from "../lib/conversation/db";
 import { handleInbound } from "../lib/conversation/handle";
 
 const db = admin();
@@ -128,6 +128,49 @@ async function main() {
       .select("id", { count: "exact", head: true })
       .eq("patient_id", patient?.id);
     check("mensajes guardados (entrantes + salientes)", (count ?? 0) >= 16, count);
+
+    // ── Módulos: recepción apagada, solo recuperación ──────────────
+    await db
+      .from("clinics")
+      .update({
+        settings: {
+          services: [{ name: "Limpieza facial profunda", price: "S/90" }],
+          modules: { reception: false, recovery: true },
+        },
+      })
+      .eq("id", clinicId);
+    invalidateClinic(clinicId);
+
+    const other = `e2eb${Date.now()}abcdef`;
+    const sayAs = (sess: string, text: string) =>
+      handleInbound({
+        clinicId,
+        channel: "webchat",
+        externalId: `web:${sess}`,
+        text,
+        messageId: `web:e2e-${sess}-${seq++}`,
+        debounceMs: 0,
+      });
+
+    let m = await sayAs(other, "hola, cuánto cuesta la limpieza facial");
+    check("recepción apagada: un contacto nuevo NO recibe respuesta", m.status === "ignored", m);
+
+    await db
+      .from("patients")
+      .update({ last_reactivation_sent_at: new Date().toISOString() })
+      .eq("clinic_id", clinicId)
+      .eq("phone_e164", `web:${other}`);
+    m = await sayAs(other, "hola, cuánto cuesta la limpieza facial");
+    check("recepción apagada: quien fue reactivado SÍ recibe respuesta", m.status === "replied" && !!m.reply?.includes("S/90"), m);
+
+    // La marca de reactivación se limpia (lo hace el cron) y la conversación sigue abierta.
+    await db
+      .from("patients")
+      .update({ last_reactivation_sent_at: null })
+      .eq("clinic_id", clinicId)
+      .eq("phone_e164", `web:${other}`);
+    m = await sayAs(other, "y a qué hora atienden?");
+    check("la conversación de recuperación sigue abierta tras limpiar la marca", m.status !== "ignored", m);
   } finally {
     await db.from("clinics").delete().eq("id", clinicId);
     console.log("\n(clínica de prueba eliminada)");

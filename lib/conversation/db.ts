@@ -110,6 +110,11 @@ export function mapClinic(row: Record<string, any>): ClinicContext {
     waSessionId: str(row.wa_session_id) ?? null,
     timezone: str(s.timezone) ?? "America/Lima",
     botPaused: s.bot_paused === true,
+    // Por defecto ambos activos: el comportamiento actual no cambia hasta que se configure.
+    modules: {
+      reception: (s.modules as Record<string, unknown> | undefined)?.reception !== false,
+      recovery: (s.modules as Record<string, unknown> | undefined)?.recovery !== false,
+    },
     settings: s,
   };
 }

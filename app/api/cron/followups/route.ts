@@ -73,6 +73,10 @@ export async function GET(request: NextRequest) {
       skip("clinic_paused");
       continue;
     }
+    if (!clinic.modules.recovery) {
+      skip("recovery_module_off");
+      continue;
+    }
     const patient = mapPatient(patientRow, "whatsapp");
     if (patientRow.channel_source && patientRow.channel_source !== "whatsapp") {
       skip("other_channel");

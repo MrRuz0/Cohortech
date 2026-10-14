@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
   for (const { id } of clinicRows) {
     if (Date.now() - startedAt > TIME_BUDGET_MS) break;
     const clinic = await getClinic(id);
-    if (!clinic?.waSessionId || clinic.botPaused) continue;
+    if (!clinic?.waSessionId || clinic.botPaused || !clinic.modules.recovery) continue;
     if (!inSendingWindow(clinic.timezone, now)) {
       skippedWindow++;
       continue;
