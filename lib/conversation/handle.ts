@@ -33,6 +33,7 @@ import type {
   PatientUpdates,
   ResponseSource,
 } from "./types";
+import { logError, logWarn } from "./log";
 
 const DEBOUNCE_MS = 3500;
 const MAX_BOT_REPLIES_PER_HOUR = 15;
@@ -131,7 +132,7 @@ async function deliver(params: {
     row.response_source = params.source;
   }
   const { data: logged, error: logErr } = await db.from("messages").insert(row).select("id").single();
-  if (logErr) console.error("[deliver] no se pudo registrar el mensaje:", logErr.message);
+  if (logErr) await logError("deliver", "No se pudo registrar el mensaje saliente", logErr, { clinicId: params.clinic.id, patientId: params.patient.id });
 
   try {
     const { id } = await sendToChannel({
@@ -147,7 +148,7 @@ async function deliver(params: {
     }
     return true;
   } catch (err) {
-    console.error("[deliver] envío falló:", err);
+    await logError("deliver", "No se pudo enviar el mensaje", err, { clinicId: params.clinic.id, patientId: params.patient.id, detail: { channel: params.channel, source: params.source, preview: text.slice(0, 100) } });
     if (logged?.id) await db.from("messages").update({ processing_status: "failed" }).eq("id", logged.id);
     return false;
   }
@@ -206,7 +207,7 @@ async function applyPatientUpdates(params: {
   if (params.isExisting === true) upd.status = "active";
 
   const { error } = await admin().from("patients").update(upd).eq("id", patient.id);
-  if (error) console.error("[patient.update]", error.message);
+  if (error) await logError("patient.update", "No se pudo actualizar al paciente", error, { patientId: patient.id });
 }
 
 async function updateFollowups(params: {
@@ -258,7 +259,7 @@ async function updateFollowups(params: {
       .eq("patient_id", params.patientId)
       .eq("membership_status", "active");
   } catch (err) {
-    console.error("[followups.update]", err);
+    await logError("followups.update", "No se pudo actualizar el seguimiento", err, { clinicId: params.clinicId, patientId: params.patientId });
   }
 }
 
@@ -283,7 +284,7 @@ async function classifyCohort(params: {
       await db.rpc("increment_cohort_message_count", { p_patient_id: params.patientId, p_cohort_id: cohort.id });
     }
   } catch (err) {
-    console.error("[cohort.classify]", err);
+    await logError("cohort.classify", "No se pudo clasificar al paciente en una cohorte", err, { clinicId: params.clinicId, patientId: params.patientId });
   }
 }
 
@@ -487,13 +488,13 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
             updates = { ...updates, pauseBotHours: 24 };
           }
         } else {
-          console.warn(`[ai] respuesta rechazada (${check.reason}): ${ai.reply.slice(0, 120)}`);
+          await logWarn("ai", `Respuesta de IA rechazada (${check.reason})`, { reply: ai.reply.slice(0, 300), patientMessage: effectiveText.slice(0, 200) }, { clinicId: clinic.id, patientId: patient.id });
           replyText = canned("safeFallback", clinic, patient);
           source = "safety";
           notify = { reason: "ai_failure", priority: "normal" };
         }
       } else {
-        console.warn(`[ai] sin respuesta (${ai.reason})`);
+        await logWarn("ai", `La IA no respondió (${ai.reason})`, { patientMessage: effectiveText.slice(0, 200) }, { clinicId: clinic.id, patientId: patient.id });
         replyText = canned("safeFallback", clinic, patient);
         source = "safety";
         notify = { reason: "ai_failure", priority: "normal" };
@@ -508,7 +509,7 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
     }
   } catch (err) {
     // Nunca dejar al paciente en silencio por un error inesperado.
-    console.error("[handle] error en decisión:", err);
+    await logError("engine", "Error inesperado al decidir la respuesta", err, { clinicId: clinic.id, patientId: patient.id, detail: { patientMessage: effectiveText.slice(0, 200) } });
     replyText = canned("safeFallback", clinic, patient);
     source = "safety";
     notify = { reason: "ai_failure", priority: "normal" };
@@ -536,7 +537,7 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
       recoveryEngaged: !clinic.modules.reception,
     });
   } catch (err) {
-    console.error("[handle] applyPatientUpdates:", err);
+    await logError("patient.update", "Falló applyPatientUpdates", err, { clinicId: clinic.id, patientId: patient.id });
   }
 
   const isBooking = effectiveIntent === "booking";

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { isAdminUser } from "@/lib/conversation/admin";
 import { admin } from "@/lib/conversation/db";
 import { ModuleToggles } from "@/components/admin/ModuleToggles";
+import { ImpersonateButton } from "@/components/admin/AdminActions";
 
 // ── Thresholds ─────────────────────────────────────────────────
 const WA_MESSAGES_MODERATE_DAYS = 5;
@@ -115,7 +116,7 @@ export default async function AdminPage() {
   const { data: clinics } = await admin()
     .from("clinics")
     .select(
-      `id, name, wa_phone_number, wa_session_id, created_at,
+      `id, name, wa_phone_number, wa_session_id, created_at, owner_id, plan, receptionist_phone,
        owner_last_login_at, last_wa_message_at, settings,
        patients(created_at)`
     )
@@ -130,6 +131,27 @@ export default async function AdminPage() {
         </div>
       </div>
     );
+  }
+
+  // Correo del dueño y errores abiertos de las últimas 24 h, por clínica.
+  const db = admin();
+  const ownerEmails = new Map<string, string>();
+  await Promise.all(
+    clinics.map(async (c: any) => {
+      if (!c.owner_id) return;
+      const { data } = await db.auth.admin.getUserById(c.owner_id);
+      if (data?.user?.email) ownerEmails.set(c.id, data.user.email);
+    })
+  );
+  const errorsByClinic = new Map<string, number>();
+  const { data: openErrors } = await db
+    .from("system_events")
+    .select("clinic_id")
+    .eq("level", "error")
+    .is("resolved_at", null)
+    .gte("created_at", new Date(Date.now() - 24 * 3_600_000).toISOString());
+  for (const e of openErrors ?? []) {
+    if (e.clinic_id) errorsByClinic.set(e.clinic_id, (errorsByClinic.get(e.clinic_id) ?? 0) + 1);
   }
 
   // Enrich each clinic with last_patient_created_at
@@ -217,12 +239,38 @@ export default async function AdminPage() {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Cliente hace {clientDays ?? "?"} días ·{" "}
-                    {clinic.total_patients} pacientes registrados
-                    {clinic.wa_phone_number && ` · ${clinic.wa_phone_number}`}
+                    Cliente hace {clientDays ?? "?"} días · {clinic.total_patients} pacientes registrados
                   </p>
+                  <dl className="mt-2 grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
+                    <div>
+                      <dt className="inline text-muted-foreground">Correo: </dt>
+                      <dd className="inline font-medium">{ownerEmails.get(clinic.id) ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline text-muted-foreground">WhatsApp: </dt>
+                      <dd className="inline font-medium">{clinic.wa_phone_number ?? (clinic.wa_session_id ? "vinculado" : "sin conectar")}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline text-muted-foreground">Recepcionista: </dt>
+                      <dd className="inline font-medium">{clinic.receptionist_phone ?? "no configurada"}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline text-muted-foreground">Plan: </dt>
+                      <dd className="inline font-medium">{clinic.plan ?? "starter"}</dd>
+                    </div>
+                  </dl>
+                  {(errorsByClinic.get(clinic.id) ?? 0) > 0 && (
+                    <a
+                      href="/admin/audit"
+                      className="mt-2 inline-block rounded-full bg-error/10 px-2.5 py-1 text-xs font-semibold text-error"
+                    >
+                      ⚠ {errorsByClinic.get(clinic.id)} errores abiertos (24 h)
+                    </a>
+                  )}
                 </div>
 
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <ImpersonateButton clinicId={clinic.id} clinicName={clinic.name} />
                 {waLink && (
                   <a
                     href={waLink}
@@ -233,6 +281,7 @@ export default async function AdminPage() {
                     💬 Llamar por WhatsApp
                   </a>
                 )}
+                </div>
               </div>
 
               <ModuleToggles

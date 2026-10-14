@@ -1,10 +1,12 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { processEvolutionPayload } from "@/lib/channels/whatsapp";
+import { logError, logWarn } from "@/lib/conversation/log";
 
 // El procesamiento (espera de 3.5 s + IA + envío con "escribiendo…") corre
 // después de responder a Evolution API, por eso necesita margen de tiempo.
 export const maxDuration = 60;
 
+let lastRejectLog = 0;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(
@@ -23,7 +25,11 @@ export async function POST(
     const token =
       new URL(request.url).searchParams.get("token") ?? request.headers.get("x-webhook-token");
     if (token !== secret) {
-      console.warn(`[wa-webhook] token inválido para clínica ${clinicId}`);
+      // Sin esto, un atacante podría llenar el registro de eventos.
+      if (Date.now() - lastRejectLog > 60_000) {
+        lastRejectLog = Date.now();
+        await logWarn("wa-webhook", "Se rechazó una llamada al webhook con token inválido", { clinicId });
+      }
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
   }
@@ -42,7 +48,7 @@ export async function POST(
       const result = await processEvolutionPayload(clinicId, body);
       if (result.status !== "ignored") console.log(`[wa-webhook] ${clinicId}`, JSON.stringify(result).slice(0, 300));
     } catch (err) {
-      console.error(`[wa-webhook] error procesando mensaje de ${clinicId}:`, err);
+      await logError("wa-webhook", "Error procesando un mensaje entrante", err, { clinicId });
     }
   });
 

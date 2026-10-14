@@ -4,6 +4,7 @@ import { requireClinic } from "@/lib/conversation/auth";
 import { admin, getClinic, getSchemaFlags, mapPatient } from "@/lib/conversation/db";
 import { cleanFirstName } from "@/lib/conversation/normalize";
 import { inSendingWindow, jitter } from "@/lib/conversation/window";
+import { logError } from "@/lib/conversation/log";
 
 export const maxDuration = 60;
 
@@ -115,7 +116,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       sent++;
       await jitter();
     } catch (err) {
-      console.error("[broadcast] error:", err);
+      await logError("broadcast", "Falló un envío masivo a la cohorte", err, { clinicId: ctx.clinicId, patientId: patient.id });
       failed++;
     }
   }

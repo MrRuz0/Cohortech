@@ -4,6 +4,7 @@ import { admin, getClinic, getPromotions, getSchemaFlags, mapPatient } from "@/l
 import { cleanFirstName } from "@/lib/conversation/normalize";
 import { activePromotions, promoLine } from "@/lib/conversation/promotions";
 import { inSendingWindow, jitter } from "@/lib/conversation/window";
+import { logError } from "@/lib/conversation/log";
 
 export const maxDuration = 60;
 
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest) {
 
     const { data: patients, error } = await query;
     if (error) {
-      console.error(`[dispatch] consulta falló (${clinic.name}):`, error.message);
+      await logError("dispatch", `La consulta de pacientes inactivos falló (${clinic.name})`, error, { clinicId: clinic.id });
       continue;
     }
     if (!patients?.length) continue;
@@ -204,7 +205,7 @@ export async function GET(request: NextRequest) {
         sentForClinic++;
         await jitter();
       } catch (err) {
-        console.error(`[dispatch] error enviando a ${patient.phone}:`, err);
+        await logError("dispatch", "No se pudo enviar la reactivación", err, { clinicId: clinic.id, patientId: patient.id });
       }
     }
   }

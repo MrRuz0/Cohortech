@@ -4,6 +4,7 @@ import { sendToChannel } from "@/lib/channels/send";
 import { admin, getClinic, getPromotions, mapPatient } from "@/lib/conversation/db";
 import { activePromotions } from "@/lib/conversation/promotions";
 import { inSendingWindow, jitter } from "@/lib/conversation/window";
+import { logError } from "@/lib/conversation/log";
 
 export const maxDuration = 60;
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
   const { data: memberships, error } = await query;
 
   if (error) {
-    console.error("[followups] consulta falló:", error.message);
+    await logError("followups", "La consulta de seguimientos falló", error);
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
   if (!memberships?.length) return NextResponse.json({ ok: true, sent: 0, churned: 0, skipped: 0 });
@@ -203,7 +204,7 @@ export async function GET(request: NextRequest) {
       sent++;
       await jitter();
     } catch (err) {
-      console.error(`[followups] error en membresía ${m.id}:`, err);
+      await logError("followups", "No se pudo enviar el seguimiento", err, { clinicId: m.clinic_id, patientId: m.patient_id });
       skip("error");
     }
   }

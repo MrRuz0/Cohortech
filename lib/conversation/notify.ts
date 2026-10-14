@@ -2,6 +2,7 @@ import { sendTextMessage } from "@/lib/evolution/client";
 import { admin, onlyDigits, toWaNumber } from "./db";
 import { cleanFirstName } from "./normalize";
 import type { ClinicContext, NotifyReason, PatientState } from "./types";
+import { logError, logWarn } from "./log";
 
 const TITLES: Record<NotifyReason, string> = {
   booking: "🔔 *Quiere agendar una cita*",
@@ -41,7 +42,7 @@ export async function notifyReceptionist(params: {
 }): Promise<boolean> {
   const { clinic, patient, reason } = params;
   if (!clinic.receptionistPhone || !clinic.waSessionId) {
-    console.warn(`[notify] Sin recepcionista/WhatsApp configurado (${reason}) para ${clinic.name}`);
+    await logWarn("notify", `La clínica no tiene recepcionista/WhatsApp configurado: no se pudo avisar (${reason})`, { reason }, { clinicId: clinic.id, patientId: patient.id });
     return false;
   }
 
@@ -69,7 +70,7 @@ export async function notifyReceptionist(params: {
   try {
     await sendTextMessage(clinic.waSessionId, toWaNumber(clinic.receptionistPhone), lines.join("\n"));
   } catch (err) {
-    console.error("[notify] Falló el aviso a recepción:", err);
+    await logError("notify", "Falló el aviso a recepción", err, { clinicId: clinic.id, patientId: patient.id, detail: { reason } });
     return false;
   }
 
