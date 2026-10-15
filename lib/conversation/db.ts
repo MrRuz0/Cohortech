@@ -87,7 +87,12 @@ function mapServices(raw: unknown): Service[] {
     const r = item as Record<string, unknown>;
     const name = typeof r.name === "string" ? r.name.trim() : "";
     if (!name) continue;
-    out.push({ name, price: r.price === undefined || r.price === null ? "" : String(r.price).trim() });
+    const dur = Number(r.duration_min);
+    out.push({
+      name,
+      price: r.price === undefined || r.price === null ? "" : String(r.price).trim(),
+      ...(Number.isFinite(dur) && dur > 0 && dur <= 1440 ? { durationMin: Math.round(dur) } : {}),
+    });
   }
   return out;
 }

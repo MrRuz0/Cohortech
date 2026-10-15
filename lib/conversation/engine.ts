@@ -2,7 +2,7 @@ import { analyzeIntents, detectOptOut } from "./intents";
 import { cleanFirstName, normalize } from "./normalize";
 import { planNegotiation, type Objection } from "./negotiation";
 import { promoLines, promosFor } from "./promotions";
-import { findServiceMatch, formatPrice, serviceLine, serviceNamedIn } from "./services";
+import { findServiceMatch, formatDuration, formatPrice, serviceLine, serviceNamedIn } from "./services";
 import { fill, Picker } from "./templates";
 import type {
   ClinicContext,
@@ -26,6 +26,13 @@ export type DecideInput = {
 };
 
 const MAX_LIST = 10;
+
+function serviceListWithDuration(services: Service[]): string {
+  const shown = services.slice(0, MAX_LIST);
+  const lines = shown.map((s) => `• ${s.name} — ${formatDuration(s.durationMin!)}`);
+  if (services.length > MAX_LIST) lines.push(`…y ${services.length - MAX_LIST} más. Pregúntame por cualquiera.`);
+  return lines.join("\n");
+}
 
 function serviceList(services: Service[], withPrice: boolean): string {
   const shown = services.slice(0, MAX_LIST);
@@ -208,7 +215,9 @@ export function decide(input: DecideInput): Decision {
   const wantsHours = has("hours_inquiry");
   const wantsLocation = has("location_inquiry");
   const wantsPayment = has("payment_inquiry");
-  const wantsInfo = wantsPrice || wantsServices || wantsHours || wantsLocation || wantsPayment;
+  const wantsDuration = has("duration_inquiry");
+  const wantsInfo =
+    wantsPrice || wantsServices || wantsHours || wantsLocation || wantsPayment || wantsDuration;
 
   if (wantsInfo) {
     // Preguntas largas o con varios temas: la IA responde mejor, con los mismos datos.
@@ -230,7 +239,8 @@ export function decide(input: DecideInput): Decision {
       } else if (target || contextual) {
         const s = (target ?? contextual) as Service;
         if (formatPrice(s.price)) {
-          bodies.push(`${s.name}: ${formatPrice(s.price)}.`);
+          const dur = wantsDuration && s.durationMin ? ` Dura aproximadamente ${formatDuration(s.durationMin)}.` : "";
+          bodies.push(`${s.name}: ${formatPrice(s.price)}.${dur}`);
         } else {
           bodies.push(`Sobre ${s.name}, el valor lo define la doctora en la valoración.`);
           missing = true;
@@ -244,6 +254,30 @@ export function decide(input: DecideInput): Decision {
       } else {
         bodies.push(`Estos son los tratamientos que ofrecemos:\n${serviceList(clinic.services, false)}`);
         cta = "choose";
+      }
+    }
+    if (wantsDuration && !wantsPrice) {
+      const target = match.kind === "exact" ? match.service : (implied ?? contextService);
+      if (target?.durationMin) {
+        bodies.push(`${target.name} dura aproximadamente ${formatDuration(target.durationMin)}.`);
+      } else if (match.kind === "ambiguous") {
+        const withDur = match.services.filter((s) => s.durationMin);
+        if (withDur.length) {
+          bodies.push(
+            `Estas son las duraciones aproximadas:\n${withDur.map((s) => `• ${s.name} — ${formatDuration(s.durationMin!)}`).join("\n")}`
+          );
+          cta = "choose";
+        } else missing = true;
+      } else if (!target) {
+        const withDur = clinic.services.filter((s) => s.durationMin);
+        if (withDur.length) {
+          bodies.push(
+            `Estas son las duraciones aproximadas:\n${serviceListWithDuration(withDur)}`
+          );
+          cta = "choose";
+        } else missing = true;
+      } else {
+        missing = true;
       }
     }
     if (wantsHours) {
@@ -273,7 +307,7 @@ export function decide(input: DecideInput): Decision {
     if (missing) parts.push(picker.pick("handoff"));
 
     return reply(parts.join("\n\n"), {
-      intent: wantsPrice ? "price_inquiry" : wantsHours ? "hours_inquiry" : wantsLocation ? "location_inquiry" : wantsServices ? "service_inquiry" : "payment_inquiry",
+      intent: wantsPrice ? "price_inquiry" : wantsDuration ? "duration_inquiry" : wantsHours ? "hours_inquiry" : wantsLocation ? "location_inquiry" : wantsServices ? "service_inquiry" : "payment_inquiry",
       notify: missing ? { reason: wantsPayment ? "payment" : "missing_info", priority: "normal" } : undefined,
       updates: baseUpdates,
     });

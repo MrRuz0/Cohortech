@@ -5,6 +5,7 @@ import { useState } from "react";
 type Service = {
   name: string;
   price: string;
+  duration_min?: number | null;
 };
 
 type ClinicTools = {
@@ -39,9 +40,16 @@ export function ClinicToolsForm({
     setServices((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  function updateService(i: number, field: "name" | "price", value: string) {
+  function updateService(i: number, field: "name" | "price" | "duration_min", value: string) {
     setServices((prev) =>
-      prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s))
+      prev.map((s, idx) => {
+        if (idx !== i) return s;
+        if (field === "duration_min") {
+          const n = Number(value);
+          return { ...s, duration_min: value.trim() && Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 1440) : null };
+        }
+        return { ...s, [field]: value };
+      })
     );
   }
 
@@ -51,7 +59,13 @@ export function ClinicToolsForm({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        services: services.filter((s) => s.name.trim()),
+        services: services
+          .filter((s) => s.name.trim())
+          .map((s) => ({
+            name: s.name.trim(),
+            price: s.price,
+            ...(s.duration_min ? { duration_min: s.duration_min } : {}),
+          })),
         booking_link: bookingLink,
         booking_phone: bookingPhone,
         address,
@@ -69,9 +83,9 @@ export function ClinicToolsForm({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold">Servicios y precios</h3>
+            <h3 className="text-sm font-semibold">Servicios, precios y duración</h3>
             <p className="text-xs text-muted-foreground">
-              El bot los menciona cuando un paciente pregunta por tratamientos.
+              El bot los menciona cuando preguntan por tratamientos, precios o cuánto dura cada uno (en minutos).
             </p>
           </div>
           <button
@@ -99,6 +113,16 @@ export function ClinicToolsForm({
                 value={s.price}
                 onChange={(e) => updateService(i, "price", e.target.value)}
                 className="w-36 rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <input
+                type="number"
+                min={5}
+                max={1440}
+                placeholder="Min"
+                title="Duración en minutos"
+                value={s.duration_min ?? ""}
+                onChange={(e) => updateService(i, "duration_min", e.target.value)}
+                className="w-20 rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               {services.length > 1 && (
                 <button

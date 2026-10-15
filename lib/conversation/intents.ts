@@ -146,6 +146,13 @@ const SERVICES: RegExp[] = [
   /\blista de (servicios|tratamientos|precios)\b/,
 ];
 
+const DURATION: RegExp[] = [
+  /\bcuanto (dura|duran|demora|demoran|tarda|tardan|se tarda|se demora|tiempo)\b/,
+  /\b(duracion|demora|tiempo que (dura|toma|demora))\b/,
+  /\bcuantos? (minutos|horas)\b/,
+  /\bcuanto tiempo\b/,
+];
+
 const PAYMENT: RegExp[] = [
   /\b(yape|plin|transferencia|efectivo|tarjeta|visa|mastercard)\b/,
   /\bformas? de pago\b/,
@@ -205,6 +212,7 @@ export function analyzeIntents(rawText: string): IntentAnalysis {
   if (any(HOURS, norm)) intents.add("hours_inquiry");
   if (any(LOCATION, norm)) intents.add("location_inquiry");
   if (any(SERVICES, norm)) intents.add("service_inquiry");
+  if (any(DURATION, norm)) intents.add("duration_inquiry");
   if (any(PAYMENT, norm)) intents.add("payment_inquiry");
 
   // Mensajes puramente sociales: solo cuentan si TODO el mensaje es social.

@@ -39,6 +39,15 @@ export function discountedPrice(price: string, percent: number): string | null {
   return `${currencyOf(price)}${value}`;
 }
 
+/** 30 → "30 min", 60 → "1 hora", 90 → "1 h 30 min", 120 → "2 horas". */
+export function formatDuration(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (m === 0) return h === 1 ? "1 hora" : `${h} horas`;
+  return `${h} h ${m} min`;
+}
+
 export function serviceLine(s: Service): string {
   const p = formatPrice(s.price);
   return p ? `${s.name} — ${p}` : s.name;

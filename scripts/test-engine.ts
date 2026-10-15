@@ -3,7 +3,7 @@ import { validateReply } from "../lib/conversation/validate";
 import { detectOptOut } from "../lib/conversation/intents";
 import type { ClinicContext, HistoryMessage, PatientState, Promotion } from "../lib/conversation/types";
 
-const services = [
+const services: { name: string; price: string; durationMin?: number }[] = [
   ["Limpieza facial profunda", "S/90"],
   ["Eliminación de lunares", "desde S/50 (según tamaño)"],
   ["Eliminación de verrugas", "desde S/25 (según tamaño)"],
@@ -176,6 +176,35 @@ d = run("a qué hora atienden y dónde quedan?");
 check("horario + ubicación juntos", out(d).includes("9:00") && out(d).includes("Ejército"), out(d));
 d = run("a qué hora atienden", { clinic: { hours: undefined } });
 check("sin horario configurado no inventa y avisa", d.notify?.reason === "missing_info" && !/\d{1,2}:\d{2}/.test(out(d)), out(d));
+
+// 8b. Duración de los tratamientos
+{
+  const withDur = services.map((s) => ({ ...s }));
+  const setDur = (name: string, min: number) => {
+    const s = withDur.find((x) => x.name === name);
+    if (s) s.durationMin = min;
+  };
+  setDur("Limpieza facial profunda", 60);
+  setDur("Microblading de cejas", 120);
+  setDur("Calcio ampolla", 30);
+  setDur("Lifting de pestañas", 90);
+  const c = { clinic: { services: withDur } };
+
+  d = run("cuánto dura la limpieza facial?", c);
+  check("duración exacta en horas", out(d).includes("1 hora") && d.intent === "duration_inquiry", out(d));
+  d = run("cuanto demora el microblading", c);
+  check("duración 2 horas", out(d).includes("2 horas"), out(d));
+  d = run("cuántos minutos es el calcio", c);
+  check("duración en minutos", out(d).includes("30 min"), out(d));
+  d = run("cuanto dura el lifting de pestañas", c);
+  check("duración mixta 1 h 30 min", out(d).includes("1 h 30 min"), out(d));
+  d = run("cuánto cuesta y cuánto dura el microblading", c);
+  check("precio + duración en una respuesta", out(d).includes("S/350") && out(d).includes("2 horas"), out(d));
+  d = run("cuánto dura el tratamiento de cejas", c);
+  check("duración ambigua pregunta cuál", out(d).includes("•"), out(d));
+  d = run("cuánto dura la limpieza facial?");
+  check("sin duración configurada no inventa y avisa", d.notify?.reason === "missing_info" && !/\d+\s?(min|hora)/.test(out(d)), out(d));
+}
 
 // 9. Complejidad → IA
 d = run("hola, quiero saber el precio de la limpieza facial y si es doloroso porque tengo la piel muy sensible y me salen granos seguido? además trabajo mucho");

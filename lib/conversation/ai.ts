@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { NlpResult } from "@/lib/openai/extract-entities";
-import { formatPrice } from "./services";
+import { formatDuration, formatPrice } from "./services";
 import { promoLines } from "./promotions";
 import { cleanFirstName } from "./normalize";
 import type { ClinicContext, HistoryMessage, PatientState, Promotion } from "./types";
@@ -23,7 +23,12 @@ function buildSystemPrompt(
   promos: Promotion[]
 ): string {
   const services = clinic.services.length
-    ? clinic.services.map((s) => `- ${s.name}${s.price ? `: ${formatPrice(s.price)}` : ""}`).join("\n")
+    ? clinic.services
+        .map(
+          (s) =>
+            `- ${s.name}${s.price ? `: ${formatPrice(s.price)}` : ""}${s.durationMin ? ` (duración ${formatDuration(s.durationMin)})` : ""}`
+        )
+        .join("\n")
     : "(sin servicios configurados)";
   const facts: string[] = [];
   if (clinic.hours) facts.push(`Horario: ${clinic.hours}`);

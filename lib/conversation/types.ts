@@ -1,6 +1,6 @@
 export type Channel = "whatsapp" | "webchat" | "instagram" | "messenger";
 
-export type Service = { name: string; price: string };
+export type Service = { name: string; price: string; durationMin?: number };
 
 export type Promotion = {
   id: string;
@@ -84,6 +84,7 @@ export type Intent =
   | "hours_inquiry"
   | "location_inquiry"
   | "service_inquiry"
+  | "duration_inquiry"
   | "payment_inquiry"
   | "thanks"
   | "farewell"
