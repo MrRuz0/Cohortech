@@ -86,6 +86,10 @@ export async function GET(request: NextRequest) {
       skip("recovery_module_off");
       continue;
     }
+    if (!clinic.plan.active) {
+      skip("plan_inactive");
+      continue;
+    }
     const patient = mapPatient(patientRow, "whatsapp");
     if (patientRow.channel_source && patientRow.channel_source !== "whatsapp") {
       skip("other_channel");

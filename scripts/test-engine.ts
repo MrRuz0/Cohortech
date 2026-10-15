@@ -1,5 +1,6 @@
 import { decide } from "../lib/conversation/engine";
 import { validateReply } from "../lib/conversation/validate";
+import { mapClinic } from "../lib/conversation/db";
 import { detectOptOut } from "../lib/conversation/intents";
 import type { ClinicContext, HistoryMessage, PatientState, Promotion } from "../lib/conversation/types";
 
@@ -231,6 +232,22 @@ check("rechaza link inventado", !validateReply("Reserva en https://malicioso.com
 check("rechaza teléfono inventado", !validateReply("Llámanos al 987 654 321.", clinic, []).ok);
 check("acepta teléfono configurado", validateReply("Llámanos al +51 932 900 766.", clinic, []).ok);
 check("rechaza placeholder", !validateReply("Hola {name}", clinic, []).ok);
+
+// 12. Plan por clínica (cobro manual) y módulos
+{
+  const base = { id: "c", name: "X", settings: {} } as Record<string, any>;
+  const day = 86_400_000;
+  check("plan: sin columnas → activo", mapClinic(base).plan.active === true);
+  check("plan: active sin vencimiento", mapClinic({ ...base, plan_status: "active", plan_expires_at: null }).plan.active);
+  check("plan: vencido → inactivo", !mapClinic({ ...base, plan_status: "active", plan_expires_at: new Date(Date.now() - day).toISOString() }).plan.active);
+  check("plan: suspendido → inactivo", !mapClinic({ ...base, plan_status: "suspended" }).plan.active);
+  check("plan: prueba vigente → activo", mapClinic({ ...base, plan_status: "trial", plan_expires_at: new Date(Date.now() + day).toISOString() }).plan.active);
+  check(
+    "módulos: multicanal activo por defecto y apagable",
+    mapClinic(base).modules.multichannel === true &&
+      mapClinic({ ...base, settings: { modules: { multichannel: false } } }).modules.multichannel === false
+  );
+}
 
 console.log(`\n${passed} OK, ${failed} fallos`);
 process.exit(failed ? 1 : 0);

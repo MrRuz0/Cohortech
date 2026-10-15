@@ -15,9 +15,15 @@ export async function PATCH(request: NextRequest) {
   if (!clinic) return NextResponse.json({ error: "Clínica no encontrada" }, { status: 404 });
 
   const settings = { ...((clinic.settings ?? {}) as Record<string, unknown>) };
-  const current = { reception: true, recovery: true, ...((settings.modules as object) ?? {}) } as Record<string, boolean>;
+  const current = {
+    reception: true,
+    recovery: true,
+    multichannel: true,
+    ...((settings.modules as object) ?? {}),
+  } as Record<string, boolean>;
   if (typeof body.reception === "boolean") current.reception = body.reception;
   if (typeof body.recovery === "boolean") current.recovery = body.recovery;
+  if (typeof body.multichannel === "boolean") current.multichannel = body.multichannel;
   settings.modules = current;
 
   const { error } = await db.from("clinics").update({ settings }).eq("id", clinicId);

@@ -100,6 +100,36 @@ export function sentMessageId(response: unknown): string | null {
   return r?.key?.id ?? r?.data?.key?.id ?? null;
 }
 
+export type LinkedAccount = { number: string | null; profileName: string | null; state: string | null };
+
+/** Número, nombre de perfil y estado de TODAS las sesiones de WhatsApp (una sola llamada). */
+export async function fetchLinkedAccounts(): Promise<Map<string, LinkedAccount>> {
+  const out = new Map<string, LinkedAccount>();
+  try {
+    const res = await fetch(`${BASE_URL}/instance/fetchInstances`, {
+      headers: headers(),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return out;
+    const list = (await res.json()) as unknown;
+    if (!Array.isArray(list)) return out;
+    for (const raw of list) {
+      const i = (raw as { instance?: Record<string, unknown> }).instance ?? (raw as Record<string, unknown>);
+      const name = String(i.name ?? i.instanceName ?? "");
+      if (!name) continue;
+      const digits = String(i.ownerJid ?? i.owner ?? i.number ?? "").split("@")[0].replace(/\D/g, "");
+      out.set(name, {
+        number: digits || null,
+        profileName: typeof i.profileName === "string" && i.profileName ? i.profileName : null,
+        state: typeof (i.connectionStatus ?? i.status) === "string" ? String(i.connectionStatus ?? i.status) : null,
+      });
+    }
+  } catch {
+    /* sin respuesta: el panel muestra "—" */
+  }
+  return out;
+}
+
 export async function fetchMessages(instanceName: string, remoteJid?: string) {
   const res = await fetch(`${BASE_URL}/chat/findMessages/${instanceName}`, {
     method: "POST",

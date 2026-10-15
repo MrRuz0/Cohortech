@@ -2,17 +2,14 @@
 
 import { useState } from "react";
 
-export function ModuleToggles({
-  clinicId,
-  initial,
-}: {
-  clinicId: string;
-  initial: { reception: boolean; recovery: boolean };
-}) {
+type Mods = { reception: boolean; recovery: boolean; multichannel: boolean };
+type Key = keyof Mods;
+
+export function ModuleToggles({ clinicId, initial }: { clinicId: string; initial: Mods }) {
   const [mods, setMods] = useState(initial);
   const [busy, setBusy] = useState(false);
 
-  async function set(key: "reception" | "recovery", value: boolean) {
+  async function set(key: Key, value: boolean) {
     setBusy(true);
     const prev = mods;
     setMods({ ...mods, [key]: value });
@@ -31,7 +28,7 @@ export function ModuleToggles({
     }
   }
 
-  const Item = ({ k, label }: { k: "reception" | "recovery"; label: string }) => (
+  const Item = ({ k, label }: { k: Key; label: string }) => (
     <label className="flex cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-xs font-medium">
       <input type="checkbox" disabled={busy} checked={mods[k]} onChange={(e) => set(k, e.target.checked)} />
       {label}
@@ -43,6 +40,7 @@ export function ModuleToggles({
       <span className="text-xs text-muted-foreground">Módulos contratados:</span>
       <Item k="reception" label="Recepción (contesta y agenda)" />
       <Item k="recovery" label="Cohortech (recupera pacientes)" />
+      <Item k="multichannel" label="Multicanal (chat web, Instagram, Messenger)" />
     </div>
   );
 }

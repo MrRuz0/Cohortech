@@ -119,7 +119,14 @@ export function mapClinic(row: Record<string, any>): ClinicContext {
     modules: {
       reception: (s.modules as Record<string, unknown> | undefined)?.reception !== false,
       recovery: (s.modules as Record<string, unknown> | undefined)?.recovery !== false,
+      multichannel: (s.modules as Record<string, unknown> | undefined)?.multichannel !== false,
     },
+    plan: (() => {
+      const status = row.plan_status === "suspended" || row.plan_status === "trial" ? row.plan_status : "active";
+      const expiresAt: string | null = row.plan_expires_at ?? null;
+      const expired = expiresAt !== null && new Date(expiresAt).getTime() < Date.now();
+      return { status, expiresAt, active: status !== "suspended" && !expired } as const;
+    })(),
     settings: s,
   };
 }

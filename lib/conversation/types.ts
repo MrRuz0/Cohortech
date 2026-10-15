@@ -33,7 +33,9 @@ export type ClinicContext = {
    *  - reception: contesta y agenda a cualquiera que escriba
    *  - recovery:  detecta inactivos, los reactiva y les da seguimiento
    */
-  modules: { reception: boolean; recovery: boolean };
+  modules: { reception: boolean; recovery: boolean; multichannel: boolean };
+  /** Plan manual: suspendido o vencido = el asistente no responde ni envía nada. */
+  plan: { status: "trial" | "active" | "suspended"; expiresAt: string | null; active: boolean };
   settings: Record<string, unknown>;
 };
 

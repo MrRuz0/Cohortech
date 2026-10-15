@@ -381,6 +381,12 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
     }
   }
 
+  // Plan vencido o suspendido, o canal no contratado: se guarda el mensaje pero no se responde.
+  if (!clinic.plan.active) return finish({ status: "paused", reason: "plan_inactive" });
+  if (channel !== "whatsapp" && !clinic.modules.multichannel) {
+    return finish({ status: "ignored", reason: "multichannel_off" });
+  }
+
   // Pausas: interruptor general de la clínica y toma de control humana.
   if (clinic.botPaused) return finish({ status: "paused", reason: "clinic_paused" });
   if (patient.botPausedUntil && new Date(patient.botPausedUntil).getTime() > Date.now()) {
