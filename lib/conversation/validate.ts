@@ -15,6 +15,13 @@ function allowedAmounts(clinic: ClinicContext, promos: Promotion[]): Set<number>
     ...promos.map((p) => p.discount_percent ?? 0),
     0
   );
+  // Montos que la clínica escribió en promociones y formas de pago también son datos reales.
+  const textual = [
+    clinic.paymentMethods ?? "",
+    ...promos.map((p) => `${p.name} ${p.description ?? ""}`),
+  ].join(" ");
+  for (const m of textual.replace(/(\d),(\d)/g, "$1.$2").matchAll(/\d+(?:\.\d+)?/g)) set.add(Number(m[0]));
+
   for (const s of clinic.services) {
     for (const m of s.price.replace(/,/g, ".").matchAll(/\d+(?:\.\d+)?/g)) set.add(Number(m[0]));
     const base = parsePriceNumber(s.price);
