@@ -6,6 +6,7 @@ import { loadClinicStats } from "@/lib/admin/clinic-stats";
 import { ModuleToggles } from "@/components/admin/ModuleToggles";
 import { ImpersonateButton } from "@/components/admin/AdminActions";
 import { PlanActions } from "@/components/admin/PlanActions";
+import { CapControls } from "@/components/admin/CapControls";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -381,6 +382,15 @@ export default async function AdminPage() {
                   reception: ctx.modules.reception,
                   recovery: ctx.modules.recovery,
                   multichannel: ctx.modules.multichannel,
+                }}
+              />
+              <CapControls
+                clinicId={row.id}
+                initial={{
+                  enabled: ctx.settings.daily_cap_enabled !== false,
+                  warmup: ctx.settings.warmup_enabled !== false,
+                  tier: typeof ctx.settings.plan_tier === "string" ? (ctx.settings.plan_tier as string) : "pro",
+                  custom: typeof ctx.settings.daily_send_cap === "number" ? (ctx.settings.daily_send_cap as number) : null,
                 }}
               />
               <div className="mt-3 flex flex-wrap items-center gap-3">
