@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createHmac, timingSafeEqual } from "crypto";
 import { getSubscription } from "@/lib/mercadopago/client";
 
 const supabaseAdmin = createClient(
@@ -17,9 +18,35 @@ const STATUS_MAP: Record<string, string> = {
   pending: "pending",
 };
 
+/** Valida x-signature de MercadoPago (HMAC-SHA256 de "id;request-id;ts"). Sin secreto configurado no bloquea:
+ *  el handler igual consulta el estado real a la API de MP, así que un POST falso no puede cambiar nada. */
+function validSignature(request: NextRequest, dataId: string): boolean {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  if (!secret) return true;
+  const header = request.headers.get("x-signature") ?? "";
+  const requestId = request.headers.get("x-request-id") ?? "";
+  const parts = Object.fromEntries(
+    header.split(",").map((p) => {
+      const i = p.indexOf("=");
+      return [p.slice(0, i).trim(), p.slice(i + 1).trim()];
+    })
+  );
+  if (!parts.ts || !parts.v1) return false;
+  const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${parts.ts};`;
+  const expected = createHmac("sha256", secret).update(manifest).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(parts.v1);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ ok: true });
+
+  const sigId = String(request.nextUrl.searchParams.get("data.id") ?? body.data?.id ?? body.id ?? "");
+  if (!validSignature(request, sigId)) {
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
+  }
 
   // MercadoPago sends { type: "subscription_preapproval" | "payment", data: { id } }
   const type = body.type ?? body.topic;
