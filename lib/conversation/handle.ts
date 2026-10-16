@@ -2,6 +2,7 @@ import { assignPatientToCohort } from "@/lib/cohorts/assign";
 import type { NlpResult } from "@/lib/openai/extract-entities";
 import { humanDelayMs, sendToChannel } from "@/lib/channels/send";
 import { generateAiReply } from "./ai";
+import { aiUsedThisMonth, DEFAULT_AI_MONTHLY_CAP } from "./limits";
 import {
   admin,
   countRecentBotReplies,
@@ -479,7 +480,12 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
     if (decision.kind === "ai") {
       aiUsed = true;
       updates = decision.updates;
-      const ai = await generateAiReply({ clinic, patient, text: effectiveText, history, promos });
+      const aiCap =
+        typeof clinic.settings.ai_monthly_cap === "number" ? (clinic.settings.ai_monthly_cap as number) : DEFAULT_AI_MONTHLY_CAP;
+      const overCap = (await aiUsedThisMonth(clinic.id)) >= aiCap;
+      const ai = overCap
+        ? ({ ok: false, reason: "ai_cap" } as unknown as Awaited<ReturnType<typeof generateAiReply>>)
+        : await generateAiReply({ clinic, patient, text: effectiveText, history, promos });
       if (ai.ok) {
         const check = validateReply(ai.reply, clinic, promos);
         if (check.ok) {

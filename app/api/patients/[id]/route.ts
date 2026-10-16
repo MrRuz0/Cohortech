@@ -66,3 +66,20 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
 
   return NextResponse.json({ ok: true });
 }
+
+/** Elimina por completo al paciente y su historial (derecho de supresión). */
+export async function DELETE(_request: NextRequest, { params }: Ctx) {
+  const ctx = await requireClinic();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  const db = admin();
+
+  const { data: patient } = await db.from("patients").select("id").eq("id", id).eq("clinic_id", ctx.clinicId).maybeSingle();
+  if (!patient) return NextResponse.json({ error: "Paciente no encontrado" }, { status: 404 });
+
+  await db.from("messages").delete().eq("patient_id", id).eq("clinic_id", ctx.clinicId);
+  await db.from("cohort_memberships").delete().eq("patient_id", id).eq("clinic_id", ctx.clinicId);
+  const { error } = await db.from("patients").delete().eq("id", id).eq("clinic_id", ctx.clinicId);
+  if (error) return NextResponse.json({ error: "No se pudo eliminar (tiene datos asociados)" }, { status: 409 });
+  return NextResponse.json({ ok: true });
+}

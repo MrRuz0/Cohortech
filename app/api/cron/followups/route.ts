@@ -4,6 +4,7 @@ import { sendToChannel } from "@/lib/channels/send";
 import { admin, getClinic, getPromotions, mapPatient } from "@/lib/conversation/db";
 import { activePromotions } from "@/lib/conversation/promotions";
 import { inSendingWindow, jitter } from "@/lib/conversation/window";
+import { remainingToday } from "@/lib/conversation/limits";
 import { logError } from "@/lib/conversation/log";
 
 export const maxDuration = 60;
@@ -57,7 +58,16 @@ export async function GET(request: NextRequest) {
     reasons[why] = (reasons[why] ?? 0) + 1;
   };
 
-  for (const m of memberships) {
+  // Round-robin entre clínicas para que una sola no consuma todo el cupo de la corrida.
+  const byClinic = new Map<string, typeof memberships>();
+  for (const m of memberships) byClinic.set(m.clinic_id, [...(byClinic.get(m.clinic_id) ?? []), m]);
+  const ordered: typeof memberships = [];
+  for (let i = 0; ordered.length < memberships.length; i++) {
+    for (const list of byClinic.values()) if (list[i]) ordered.push(list[i]);
+  }
+  const dailyLeft = new Map<string, number>();
+
+  for (const m of ordered) {
     if (sent >= MAX_PER_RUN || Date.now() - startedAt > TIME_BUDGET_MS) break;
 
     const patientRow = m.patients as any;
@@ -71,6 +81,13 @@ export async function GET(request: NextRequest) {
     if (!clinic?.waSessionId) {
       skip("no_whatsapp");
       continue;
+    }
+    if (!preview) {
+      if (!dailyLeft.has(clinic.id)) dailyLeft.set(clinic.id, await remainingToday(clinic.id, clinic.settings));
+      if ((dailyLeft.get(clinic.id) ?? 0) <= 0) {
+        skip("daily_cap");
+        continue;
+      }
     }
 
     // Reglas de respeto: nada fuera de horario, a bloqueados, en pausa o por otros canales.
@@ -133,6 +150,7 @@ export async function GET(request: NextRequest) {
     if (preview) {
       wouldSend.push({ clinic: clinic.name, phone: `…${patient.phone.slice(-4)}`, stage: nextStage });
       sent++;
+      dailyLeft.set(clinic.id, (dailyLeft.get(clinic.id) ?? 1) - 1);
       continue;
     }
 
@@ -206,6 +224,7 @@ export async function GET(request: NextRequest) {
       });
 
       sent++;
+      dailyLeft.set(clinic.id, (dailyLeft.get(clinic.id) ?? 1) - 1);
       await jitter();
     } catch (err) {
       await logError("followups", "No se pudo enviar el seguimiento", err, { clinicId: m.clinic_id, patientId: m.patient_id });

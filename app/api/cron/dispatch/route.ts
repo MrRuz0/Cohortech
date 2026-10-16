@@ -5,6 +5,7 @@ import { cleanFirstName } from "@/lib/conversation/normalize";
 import { activePromotions, promoLine } from "@/lib/conversation/promotions";
 import { inSendingWindow, jitter } from "@/lib/conversation/window";
 import { logError } from "@/lib/conversation/log";
+import { remainingToday } from "@/lib/conversation/limits";
 
 export const maxDuration = 60;
 
@@ -78,7 +79,9 @@ export async function GET(request: NextRequest) {
   let reactivated = 0;
   let skippedWindow = 0;
 
-  for (const { id } of clinicRows) {
+  // Orden aleatorio: si se agota el presupuesto de tiempo, no siempre quedan fuera las mismas clínicas.
+  const shuffled = [...clinicRows].sort(() => Math.random() - 0.5);
+  for (const { id } of shuffled) {
     if (Date.now() - startedAt > TIME_BUDGET_MS) break;
     const clinic = await getClinic(id, true);
     if (!clinic?.waSessionId || clinic.botPaused || !clinic.modules.recovery || !clinic.plan.active) continue;
@@ -86,6 +89,9 @@ export async function GET(request: NextRequest) {
       skippedWindow++;
       continue;
     }
+
+    let dailyLeft = preview ? Infinity : await remainingToday(clinic.id, clinic.settings);
+    if (dailyLeft <= 0) continue;
 
     const inactivityDays =
       typeof clinic.settings.reactivation_after_days === "number"
@@ -118,7 +124,7 @@ export async function GET(request: NextRequest) {
 
     let sentForClinic = 0;
     for (const row of patients) {
-      if (sentForClinic >= MAX_MESSAGES_PER_CLINIC || Date.now() - startedAt > TIME_BUDGET_MS) break;
+      if (sentForClinic >= MAX_MESSAGES_PER_CLINIC || sentForClinic >= dailyLeft || Date.now() - startedAt > TIME_BUDGET_MS) break;
 
       const patient = mapPatient(row, "whatsapp");
       if (patient.botPausedUntil && new Date(patient.botPausedUntil).getTime() > Date.now()) continue;

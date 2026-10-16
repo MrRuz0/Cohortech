@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { PatientActions } from "@/components/dashboard/PatientActions";
+import { PatientImport } from "@/components/dashboard/PatientImport";
+import Link from "next/link";
+
+const PAGE_SIZE = 50;
 
 function ltvBadge(score: number) {
   if (score >= 0.6) return { label: "Alto LTV", classes: "bg-exito/10 text-exito" };
@@ -24,8 +28,24 @@ function contactLabel(p: { phone_e164: string; channel_source?: string | null })
   return p.phone_e164;
 }
 
-export default async function PatientsPage() {
+export default async function PatientsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const supabase = await createClient();
+  const page = Math.max(1, parseInt((await searchParams).page ?? "1", 10) || 1);
+  const from = (page - 1) * PAGE_SIZE;
+
+  const countOf = async (apply?: (q: any) => any) => {
+    let q: any = supabase.from("patients").select("id", { count: "exact", head: true });
+    if (apply) q = apply(q);
+    const { count } = await q;
+    return count ?? 0;
+  };
+  const [total, returning, highChurn, converted, blocked] = await Promise.all([
+    countOf(),
+    countOf((q) => q.eq("is_returning", true)),
+    countOf((q) => q.gte("churn_risk_score", 0.65)),
+    countOf((q) => q.gt("conversions_count", 0)),
+    countOf((q) => q.eq("is_blocked", true)),
+  ]);
 
   // select("*"): no se rompe si alguna migración aún no se aplicó.
   const { data: patients } = await supabase
@@ -38,13 +58,9 @@ export default async function PatientsPage() {
          cohort_definitions(name)
        )`
     )
-    .order("last_contact_at", { ascending: false, nullsFirst: false });
-
-  const total = patients?.length ?? 0;
-  const returning = patients?.filter((p) => p.is_returning).length ?? 0;
-  const highChurn = patients?.filter((p) => (p.churn_risk_score ?? 0) >= 0.65).length ?? 0;
-  const converted = patients?.filter((p) => (p.conversions_count ?? 0) > 0).length ?? 0;
-  const blocked = patients?.filter((p) => p.is_blocked).length ?? 0;
+    .order("last_contact_at", { ascending: false, nullsFirst: false })
+    .range(from, from + PAGE_SIZE - 1);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const now = Date.now();
 
   return (
@@ -56,6 +72,8 @@ export default async function PatientsPage() {
           {blocked > 0 ? ` · ${blocked} bloqueados` : ""}
         </p>
       </div>
+
+      <PatientImport />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border bg-white p-4 shadow-sm">
@@ -180,6 +198,13 @@ export default async function PatientsPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          {page > 1 ? <Link className="underline" href={`?page=${page - 1}`}>← Anterior</Link> : <span />}
+          <span className="text-muted-foreground">Página {page} de {totalPages}</span>
+          {page < totalPages ? <Link className="underline" href={`?page=${page + 1}`}>Siguiente →</Link> : <span />}
         </div>
       )}
     </div>

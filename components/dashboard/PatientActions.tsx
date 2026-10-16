@@ -35,6 +35,18 @@ export function PatientActions({
     }
   }
 
+  async function remove() {
+    if (!confirm("Se eliminará el paciente y todo su historial de mensajes. Esta acción no se puede deshacer. ¿Continuar?")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/patients/${patientId}`, { method: "DELETE" });
+      if (!res.ok) alert((await res.json().catch(() => ({}))).error ?? "No se pudo eliminar");
+      else router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const btn =
     "rounded-md border px-2 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50";
 
@@ -68,6 +80,12 @@ export function PatientActions({
           Bloquear
         </button>
       )}
+      <a className={btn} href={`/api/patients/${patientId}/export`}>
+        Exportar
+      </a>
+      <button disabled={busy} className={`${btn} border-error/30 text-error hover:bg-error/10`} onClick={remove}>
+        Eliminar
+      </button>
     </div>
   );
 }
