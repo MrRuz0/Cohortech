@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { logWarn } from "@/lib/conversation/log";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,7 @@ const supabaseAdmin = createClient(
 
 // Límite por IP (best-effort por instancia serverless): 5 registros por hora.
 const hits = new Map<string, number[]>();
+const warned = new Set<string>();
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_WINDOW = 5;
 
@@ -29,6 +31,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (rateLimited(ip)) {
+    // Un solo aviso por IP (hasta que se reinicie la instancia) para no llenar la auditoría.
+    if (!warned.has(ip)) {
+      if (warned.size > 1000) warned.clear();
+      warned.add(ip);
+      await logWarn("register", "Posible abuso: demasiados registros desde una misma IP", { ip, limitPerHour: MAX_PER_WINDOW });
+    }
     return NextResponse.json({ error: "Demasiados intentos. Prueba de nuevo en una hora." }, { status: 429 });
   }
 
