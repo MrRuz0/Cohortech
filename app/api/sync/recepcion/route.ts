@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/conversation/db";
 import { logError, logWarn } from "@/lib/conversation/log";
+import { finalizeImport, importPatients } from "@/lib/sync/recepcion-import-db";
 import { buildManagedBlock, chooseClinic, mergeDescription, promotionsFrom, toolsFrom, verifySignature, PROMO_TAG, type Snapshot } from "@/lib/sync/recepcion";
 
 /**
@@ -8,9 +9,9 @@ import { buildManagedBlock, chooseClinic, mergeDescription, promotionsFrom, tool
  * Acciones: "status" (¿está vinculada?), "link" (vincular por correo y nombre) y "sync" (copiar perfil y promociones).
  * Sin RECEPCION_SYNC_SECRET configurado queda apagado.
  */
-export const maxDuration = 30;
+export const maxDuration = 60;
 
-const MAX_BODY = 200_000;
+const MAX_BODY = 400_000;
 const json = (body: Record<string, unknown>, status = 200) => NextResponse.json(body, { status });
 
 async function findUserIdByEmail(email: string): Promise<string | null> {
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, reason: "unauthorized" }, 401);
   }
 
-  let body: { action?: string; snapshot?: Snapshot };
+  let body: { action?: string; snapshot?: Snapshot; patients?: unknown; blocked?: unknown };
   try {
     body = JSON.parse(raw);
   } catch {
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
   const snap = body.snapshot;
   const action = body.action;
-  if (!snap || snap.v !== 1 || !snap.email || !snap.recepcion_clinic_id || !snap.clinic?.name || !["status", "link", "sync"].includes(String(action))) {
+  if (!snap || snap.v !== 1 || !snap.email || !snap.recepcion_clinic_id || !snap.clinic?.name || !["status", "link", "sync", "patients", "finalize"].includes(String(action))) {
     return json({ ok: false, reason: "bad_request" }, 400);
   }
 
@@ -70,10 +71,13 @@ export async function POST(request: NextRequest) {
             : "Hay varias clínicas en Cohortech con ese correo y ninguna se llama igual. Ponle a la clínica de Cohortech el mismo nombre que en Recepción IA y vuelve a vincular.",
       });
     }
-    if (action === "sync" && pick.reason !== "already") {
+    if (["sync", "patients", "finalize"].includes(String(action)) && pick.reason !== "already") {
       return json({ ok: false, reason: "not_linked", message: "Primero vincula la clínica desde Recepción IA." });
     }
     const clinic = pick.clinic;
+    // Pacientes y conversaciones (importación). No envía nada: solo guarda, analiza y arma las cohortes.
+    if (action === "patients") return json(await importPatients(db, clinic, body.patients, body.blocked));
+    if (action === "finalize") return json(await finalizeImport(db, clinic));
     const recepcion = { ...(clinic.settings?.recepcion ?? {}), clinic_id: snap.recepcion_clinic_id, linked_at: clinic.settings?.recepcion?.linked_at ?? new Date().toISOString() };
 
     if (action === "link" && pick.reason !== "already") {

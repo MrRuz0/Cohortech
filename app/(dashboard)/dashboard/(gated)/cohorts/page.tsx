@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { CohortCard } from "@/components/dashboard/CohortCard";
+import { ApproveImportedCohort } from "@/components/dashboard/ApproveImportedCohort";
 
 export default async function CohortsPage() {
   const supabase = await createClient();
@@ -19,6 +20,11 @@ export default async function CohortsPage() {
     )
     .eq("is_active", true)
     .order("created_at", { ascending: false });
+
+  // Cohortes importadas desde Recepción IA que esperan tu aprobación antes de enviar seguimientos.
+  const { data: authData } = await supabase.auth.getUser();
+  const { data: clinicRow } = await supabase.from("clinics").select("settings").eq("owner_id", authData.user?.id ?? "").maybeSingle();
+  const pendingImport = ((clinicRow?.settings as any)?.recepcion?.import?.pending ?? []) as { cohort_id: string; name: string; count: number }[];
 
   const items = (cohorts ?? []).map((cohort) => {
     const memberships = (cohort.cohort_memberships as any[]) ?? [];
@@ -63,6 +69,21 @@ export default async function CohortsPage() {
           conversaciones de WhatsApp.
         </p>
       </div>
+
+      {pendingImport.length > 0 && (
+        <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
+          <div>
+            <p className="text-sm font-semibold">Pacientes importados de Recepción IA — pendientes de tu aprobación</p>
+            <p className="text-xs text-muted-foreground">
+              Ya están clasificados según por qué no agendaron. Nadie recibe mensajes todavía: revisa cada grupo (y su mensaje en la tarjeta de abajo) y
+              aprueba el seguimiento cuando estés conforme. Los bloqueados nunca reciben mensajes.
+            </p>
+          </div>
+          {pendingImport.map((c) => (
+            <ApproveImportedCohort key={c.cohort_id} cohortId={c.cohort_id} name={c.name} count={c.count} />
+          ))}
+        </div>
+      )}
 
       {/* Summary stats */}
       {items.length > 0 && (
