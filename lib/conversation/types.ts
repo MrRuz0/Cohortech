@@ -28,6 +28,8 @@ export type ClinicContext = {
   waSessionId: string | null;
   timezone: string;
   botPaused: boolean;
+  /** Vinculada con Recepción IA: ese producto contesta las conversaciones; Cohortech solo guarda los mensajes y hace campañas. */
+  recepcionLinked?: boolean;
   /**
    * Módulos contratados (se activan por clínica desde /admin):
    *  - reception: contesta y agenda a cualquiera que escriba

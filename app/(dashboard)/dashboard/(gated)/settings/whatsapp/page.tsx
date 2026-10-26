@@ -19,7 +19,7 @@ export default async function WhatsAppSettingsPage() {
         .single()
     : { data: null };
 
-  const viaRecepcion = (clinic?.settings as Record<string, any> | null)?.recepcion?.wa_connected === true;
+  const linked = !!(clinic?.settings as Record<string, any> | null)?.recepcion?.clinic_id;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 max-w-2xl space-y-8 duration-500">
@@ -31,19 +31,13 @@ export default async function WhatsAppSettingsPage() {
       </div>
 
       <section className="rounded-xl border bg-white p-5 shadow-sm">
-        {viaRecepcion ? (
-          <div className="space-y-2">
-            <p className="flex items-center gap-2 text-sm font-semibold">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" /> WhatsApp conectado desde Recepción IA
-            </p>
-            <p className="text-sm text-muted-foreground">
-              El WhatsApp de tu clínica ya está vinculado en Recepción IA, que es quien contesta a tus pacientes. No necesitas escanear ningún código aquí:
-              hacerlo conectaría el número dos veces y los dos sistemas contestarían.
-            </p>
-          </div>
-        ) : (
-          <QRConnector />
+        {linked && (
+          <p className="mb-4 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+            Esta clínica está vinculada con <strong>Recepción IA</strong>: ella contesta a quien escribe. Conecta aquí el WhatsApp para que Cohortech envíe
+            tus campañas, reactivaciones y seguimientos. Puedes usar el mismo número en los dos sistemas: no se responde dos veces.
+          </p>
         )}
+        <QRConnector />
       </section>
 
       <section className="space-y-3 rounded-xl border bg-white p-5 shadow-sm">

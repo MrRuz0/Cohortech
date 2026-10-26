@@ -114,9 +114,8 @@ export function mapClinic(row: Record<string, any>): ClinicContext {
     ownPhone: str(row.wa_phone_number) ?? null,
     waSessionId: str(row.wa_session_id) ?? null,
     timezone: str(s.timezone) ?? "America/Lima",
-    // Vinculada con Recepción IA: ese producto es el único que contesta a las pacientes. Cohortech guarda los mensajes pero
-    // no responde ni hace seguimientos, así nunca se le escribe dos veces a la misma persona aunque el WhatsApp esté en los dos.
-    botPaused: s.bot_paused === true || !!s.recepcion?.clinic_id,
+    botPaused: s.bot_paused === true,
+    recepcionLinked: !!s.recepcion?.clinic_id,
     // Por defecto ambos activos: el comportamiento actual no cambia hasta que se configure.
     modules: {
       reception: (s.modules as Record<string, unknown> | undefined)?.reception !== false,

@@ -390,6 +390,9 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
 
   // Pausas: interruptor general de la clínica y toma de control humana.
   if (clinic.botPaused) return finish({ status: "paused", reason: "clinic_paused" });
+  // Con Recepción IA vinculada, ella contesta las conversaciones (si el WhatsApp está en los dos, así no se responde dos veces).
+  // Las campañas, reactivaciones y seguimientos de Cohortech siguen funcionando: solo se frena la respuesta automática a quien escribe.
+  if (clinic.recepcionLinked) return finish({ status: "paused", reason: "recepcion_handles" });
   if (patient.botPausedUntil && new Date(patient.botPausedUntil).getTime() > Date.now()) {
     return finish({ status: "paused", reason: "human_takeover" });
   }

@@ -13,7 +13,7 @@ export default async function DashboardPage() {
     .single();
 
   const settings = (clinic?.settings as Record<string, any>) ?? {};
-  const isConnected = !!clinic?.wa_session_id || settings.recepcion?.wa_connected === true;
+  const isConnected = !!clinic?.wa_session_id;
   const hasTools = !!(
     settings.services?.length ||
     settings.booking_link ||
