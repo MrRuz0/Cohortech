@@ -1,5 +1,5 @@
 import { assignPatientToCohort } from "@/lib/cohorts/assign";
-import type { NlpResult } from "@/lib/openai/extract-entities";
+import { extractEntities, type NlpResult } from "@/lib/openai/extract-entities";
 import { humanDelayMs, sendToChannel } from "@/lib/channels/send";
 import { generateAiReply } from "./ai";
 import { aiUsedThisMonth, DEFAULT_AI_MONTHLY_CAP } from "./limits";
@@ -392,7 +392,20 @@ export async function handleInbound(input: InboundInput): Promise<HandleResult> 
   if (clinic.botPaused) return finish({ status: "paused", reason: "clinic_paused" });
   // Con Recepción IA vinculada, ella contesta las conversaciones (si el WhatsApp está en los dos, así no se responde dos veces).
   // Las campañas, reactivaciones y seguimientos de Cohortech siguen funcionando: solo se frena la respuesta automática a quien escribe.
-  if (clinic.recepcionLinked) return finish({ status: "paused", reason: "recepcion_handles" });
+  // Aun así Cohortech SÍ escucha: analiza el mensaje (intención, dolor, tratamiento) y clasifica al paciente en una cohorte,
+  // que es de donde salen las cohortes y las campañas. Solo no responde.
+  if (clinic.recepcionLinked) {
+    let heard: NlpResult | null = null;
+    if (text) {
+      try {
+        heard = await extractEntities(text);
+        if (heard.intent !== "other") await classifyCohort({ clinicId: clinic.id, patientId: patient.id, nlp: heard, text });
+      } catch (err) {
+        await logError("recepcion.listen", "No se pudo analizar el mensaje en modo escucha", err, { clinicId: clinic.id, patientId: patient.id });
+      }
+    }
+    return finish({ status: "paused", reason: "recepcion_handles" }, heard ? { ...heard, listen_only: true } : undefined);
+  }
   if (patient.botPausedUntil && new Date(patient.botPausedUntil).getTime() > Date.now()) {
     return finish({ status: "paused", reason: "human_takeover" });
   }
