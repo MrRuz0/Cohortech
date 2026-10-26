@@ -14,10 +14,12 @@ export default async function WhatsAppSettingsPage() {
   const { data: clinic } = user
     ? await supabase
         .from("clinics")
-        .select("receptionist_phone, max_discount_percent")
+        .select("receptionist_phone, max_discount_percent, settings")
         .eq("owner_id", user.id)
         .single()
     : { data: null };
+
+  const viaRecepcion = (clinic?.settings as Record<string, any> | null)?.recepcion?.wa_connected === true;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 max-w-2xl space-y-8 duration-500">
@@ -29,7 +31,19 @@ export default async function WhatsAppSettingsPage() {
       </div>
 
       <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <QRConnector />
+        {viaRecepcion ? (
+          <div className="space-y-2">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" /> WhatsApp conectado desde Recepción IA
+            </p>
+            <p className="text-sm text-muted-foreground">
+              El WhatsApp de tu clínica ya está vinculado en Recepción IA, que es quien contesta a tus pacientes. No necesitas escanear ningún código aquí:
+              hacerlo conectaría el número dos veces y los dos sistemas contestarían.
+            </p>
+          </div>
+        ) : (
+          <QRConnector />
+        )}
       </section>
 
       <section className="space-y-3 rounded-xl border bg-white p-5 shadow-sm">

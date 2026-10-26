@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/conversation/db";
 import { logError, logWarn } from "@/lib/conversation/log";
-import { buildManagedBlock, chooseClinic, mergeDescription, promotionsFrom, verifySignature, PROMO_TAG, type Snapshot } from "@/lib/sync/recepcion";
+import { buildManagedBlock, chooseClinic, mergeDescription, promotionsFrom, toolsFrom, verifySignature, PROMO_TAG, type Snapshot } from "@/lib/sync/recepcion";
 
 /**
  * Punto de entrada de la sincronización desde Recepción IA.
@@ -82,9 +82,18 @@ export async function POST(request: NextRequest) {
 
     // sync (también tras vincular): perfil + promociones. Cohortech NO contesta por este número: solo se actualizan sus datos.
     const block = buildManagedBlock(snap);
+    // «Herramientas» de Cohortech (servicios con precio y duración, dirección, horario): para que no las pida de nuevo.
+    const tools = toolsFrom(snap);
+    const settings: Record<string, unknown> = {
+      ...(clinic.settings ?? {}),
+      recepcion: { ...recepcion, synced_at: new Date().toISOString(), wa_connected: snap.wa_connected === true },
+    };
+    if (tools.services.length) settings.services = tools.services;
+    if (tools.address) settings.address = tools.address;
+    if (tools.hours) settings.hours = tools.hours;
     const patch: Record<string, unknown> = {
       clinic_description: mergeDescription(clinic.clinic_description, block),
-      settings: { ...(clinic.settings ?? {}), recepcion: { ...recepcion, synced_at: new Date().toISOString() } },
+      settings,
     };
     const phone = (snap.clinic.receptionist_phone ?? "").replace(/\D/g, "");
     if (phone) patch.receptionist_phone = phone;

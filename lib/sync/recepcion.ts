@@ -45,7 +45,19 @@ export type Snapshot = {
     hours: string;
   };
   services: SnapshotService[];
+  /** ¿El WhatsApp de la clínica está conectado en Recepción IA? (quien contesta a las pacientes) */
+  wa_connected?: boolean;
 };
+
+/** Lo que Cohortech llama «Herramientas» (settings.services / address / hours): se llena solo desde Recepción IA. */
+export function toolsFrom(s: Snapshot): { services: { name: string; price: string; duration_min: number }[]; address: string; hours: string } {
+  const price = (n: number) => `S/. ${Number.isInteger(n) ? n : n.toFixed(2)}`;
+  return {
+    services: s.services.slice(0, 80).map((t) => ({ name: t.name, price: price(t.price), duration_min: t.duration_min })),
+    address: [s.clinic.address, s.clinic.city].filter(Boolean).join(", "),
+    hours: s.clinic.hours ?? "",
+  };
+}
 
 const money = (n: number) => `S/ ${Number.isInteger(n) ? n : n.toFixed(2)}`;
 

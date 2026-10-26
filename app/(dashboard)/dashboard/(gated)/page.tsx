@@ -12,8 +12,8 @@ export default async function DashboardPage() {
     .eq("owner_id", user.user?.id ?? "")
     .single();
 
-  const isConnected = !!clinic?.wa_session_id;
   const settings = (clinic?.settings as Record<string, any>) ?? {};
+  const isConnected = !!clinic?.wa_session_id || settings.recepcion?.wa_connected === true;
   const hasTools = !!(
     settings.services?.length ||
     settings.booking_link ||
